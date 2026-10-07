@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.5"
+  },
+  "name": "living-glass-aquarium",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  }
+}

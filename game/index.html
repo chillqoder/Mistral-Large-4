@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low-Poly Mario</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            z-index: 10;
+        }
+        #ui div {
+            margin-bottom: 10px;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            font-size: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-align: right;
+            pointer-events: none;
+            z-index: 10;
+            opacity: 0.8;
+        }
+        #instructions div {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div>Coins: <span id="coin-count">0</span></div>
+        <div>Score: <span id="score">0</span></div>
+        <div>Time: <span id="timer">400</span></div>
+    </div>
+    <div id="instructions">
+        <div><b>Controls:</b></div>
+        <div>A / D or ← / → - Move</div>
+        <div>Space / W / ↑ - Jump</div>
+        <div>Stomp enemies from above!</div>
+        <div>Hit ? blocks from below!</div>
+    </div>
+    <div id="game-container"></div>
+
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x5c94fc); // Bright sky blue
+        scene.fog = new THREE.Fog(0x5c94fc, 20, 100);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            60,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 8, 15);
+        camera.lookAt(0, 4, 0);
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('game-container').appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.left = -50;
+        dirLight.shadow.camera.right = 50;
+        dirLight.shadow.camera.top = 50;
+        dirLight.shadow.camera.bottom = -50;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        // === PART 2: GROUND, HILLS, AND CLOUDS ===
+
+        // Ground - large green plane
+        const groundGeometry = new THREE.PlaneGeometry(200, 200);
+        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x5d9b3f });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Dirt layer under grass
+        const dirtGeometry = new THREE.BoxGeometry(200, 2, 200);
+        const dirtMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+        const dirt = new THREE.Mesh(dirtGeometry, dirtMaterial);
+        dirt.position.y = -1;
+        scene.add(dirt);
+
+        // Hills in background
+        function createHill(x, z, scale) {
+            const geometry = new THREE.SphereGeometry(1, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+            const material = new THREE.MeshLambertMaterial({ color: 0x7cb342 });
+            const hill = new THREE.Mesh(geometry, material);
+            hill.position.set(x, 0, z);
+            hill.scale.set(scale, scale * 0.6, scale);
+            scene.add(hill);
+        }
+
+        createHill(-30, -20, 15);
+        createHill(30, -25, 20);
+        createHill(-15, -35, 12);
+        createHill(20, -40, 18);
+        createHill(0, -50, 25);
+
+        // Clouds
+        function createCloud(x, y, z) {
+            const cloudGroup = new THREE.Group();
+            const cloudMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+            const puff1 = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 8), cloudMaterial);
+            puff1.position.set(0, 0, 0);
+            const puff2 = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 8), cloudMaterial);
+            puff2.position.set(2, 0.3, 0);
+            const puff3 = new THREE.Mesh(new THREE.SphereGeometry(1.8, 8, 8), cloudMaterial);
+            puff3.position.set(-2, 0.2, 0);
+            const puff4 = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 8), cloudMaterial);
+            puff4.position.set(0, 0.8, 0);
+
+            cloudGroup.add(puff1, puff2, puff3, puff4);
+            cloudGroup.position.set(x, y, z);
+            scene.add(cloudGroup);
+            return cloudGroup;
+        }
+
+        const clouds = [];
+        for (let i = 0; i < 10; i++) {
+            const x = (Math.random() - 0.5) * 150;
+            const y = 15 + Math.random() * 10;
+            const z = -20 - Math.random() * 50;
+            clouds.push(createCloud(x, y, z));
+        }
+
+        // === PART 3: PLAYER CHARACTER ===
+
+        const player = new THREE.Group();
+
+        // Materials
+        const skinMat = new THREE.MeshLambertMaterial({ color: 0xffdbac });
+        const redMat = new THREE.MeshLambertMaterial({ color: 0xe3350d }); // Red for hat/shirt
+        const blueMat = new THREE.MeshLambertMaterial({ color: 0x0058a8 }); // Blue overalls
+        const brownMat = new THREE.MeshLambertMaterial({ color: 0x6b3e26 }); // Brown shoes
+        const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        const blackMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+
+        // Body (overalls)
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.8), blueMat);
+        body.position.y = 1.5;
+        body.castShadow = true;
+        player.add(body);
+
+        // Shirt (red, on top of body)
+        const shirt = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.7, 0.85), redMat);
+        shirt.position.y = 2.1;
+        shirt.castShadow = true;
+        player.add(shirt);
+
+        // Head (skin)
+        const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), skinMat);
+        head.position.y = 3;
+        head.castShadow = true;
+        player.add(head);
+
+        // Hat (red cap)
+        const hatTop = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.3, 1.1), redMat);
+        hatTop.position.y = 3.55;
+        hatTop.castShadow = true;
+        player.add(hatTop);
+
+        const hatBrim = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 1.4), redMat);
+        hatBrim.position.set(0, 3.4, 0.2);
+        hatBrim.castShadow = true;
+        player.add(hatBrim);
+
+        // Nose
+        const nose = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), skinMat);
+        nose.position.set(0, 2.9, 0.55);
+        nose.scale.set(1, 0.8, 0.6);
+        player.add(nose);
+
+        // Eyes
+        const eyeWhite1 = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), whiteMat);
+        eyeWhite1.position.set(-0.25, 3.1, 0.5);
+        player.add(eyeWhite1);
+
+        const eyeWhite2 = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), whiteMat);
+        eyeWhite2.position.set(0.25, 3.1, 0.5);
+        player.add(eyeWhite2);
+
+        const pupil1 = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), blueMat);
+        pupil1.position.set(-0.25, 3.1, 0.58);
+        player.add(pupil1);
+
+        const pupil2 = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), blueMat);
+        pupil2.position.set(0.25, 3.1, 0.58);
+        player.add(pupil2);
+
+        // Mustache
+        const mustache = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 0.1), blackMat);
+        mustache.position.set(0, 2.7, 0.52);
+        player.add(mustache);
+
+        // Arms (red sleeves)
+        const armGeo = new THREE.BoxGeometry(0.3, 1, 0.3);
+        const armLeft = new THREE.Mesh(armGeo, redMat);
+        armLeft.position.set(-0.8, 1.8, 0);
+        armLeft.castShadow = true;
+        player.add(armLeft);
+
+        const armRight = new THREE.Mesh(armGeo, redMat);
+        armRight.position.set(0.8, 1.8, 0);
+        armRight.castShadow = true;
+        player.add(armRight);
+
+        // Hands (skin gloves)
+        const handGeo = new THREE.SphereGeometry(0.18, 8, 8);
+        const handLeft = new THREE.Mesh(handGeo, whiteMat);
+        handLeft.position.set(-0.8, 1.2, 0);
+        player.add(handLeft);
+
+        const handRight = new THREE.Mesh(handGeo, whiteMat);
+        handRight.position.set(0.8, 1.2, 0);
+        player.add(handRight);
+
+        // Legs (blue overalls)
+        const legGeo = new THREE.BoxGeometry(0.4, 0.8, 0.4);
+        const legLeft = new THREE.Mesh(legGeo, blueMat);
+        legLeft.position.set(-0.3, 0.6, 0);
+        legLeft.castShadow = true;
+        player.add(legLeft);
+
+        const legRight = new THREE.Mesh(legGeo, blueMat);
+        legRight.position.set(0.3, 0.6, 0);
+        legRight.castShadow = true;
+        player.add(legRight);
+
+        // Shoes (brown)
+        const shoeGeo = new THREE.BoxGeometry(0.5, 0.3, 0.7);
+        const shoeLeft = new THREE.Mesh(shoeGeo, brownMat);
+        shoeLeft.position.set(-0.3, 0.15, 0.05);
+        shoeLeft.castShadow = true;
+        player.add(shoeLeft);
+
+        const shoeRight = new THREE.Mesh(shoeGeo, brownMat);
+        shoeRight.position.set(0.3, 0.15, 0.05);
+        shoeRight.castShadow = true;
+        player.add(shoeRight);
+
+        // Add player to scene
+        player.position.set(-15, 0, 0);
+        scene.add(player);
+
+        // === PART 4: PLAYER CONTROLS ===
+
+        const keys = {
+            left: false,
+            right: false,
+            jump: false
+        };
+
+        window.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.left = true;
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.right = true;
+                    e.preventDefault();
+                    break;
+                case 'Space':
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.jump = true;
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.left = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.right = false;
+                    break;
+                case 'Space':
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.jump = false;
+                    break;
+            }
+        });
+
+        // === PART 5: PHYSICS SYSTEM ===
+
+        const physics = {
+            velocity: new THREE.Vector3(0, 0, 0),
+            gravity: -25,
+            jumpForce: 18.38,
+            moveSpeed: 8,
+            onGround: false
+        };
+
+        // === PART 6: PLATFORMS AND QUESTION BLOCKS ===
+
+        const platforms = [];
+        const solids = [];
+        const playerWidth = 1.96;
+        const playerHeight = 3.7;
+        let coinCount = 0;
+        let score = 0;
+        let timeRemaining = 400;
+
+        // Brick platform material
+        const brickMat = new THREE.MeshLambertMaterial({ color: 0xc4622d });
+
+        // Create question mark texture
+        function createQuestionTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fbd000';
+            ctx.fillRect(0, 0, 64, 64);
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('?', 32, 32);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const questionMat = new THREE.MeshLambertMaterial({
+            map: createQuestionTexture()
+        });
+
+        function createPlatform(x, y, z, type = 'brick') {
+            const size = 2;
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            const material = type === 'question' ? questionMat : brickMat;
+            const platform = new THREE.Mesh(geometry, material);
+            platform.position.set(x, y + size/2, z);
+            platform.castShadow = true;
+            platform.receiveShadow = true;
+            platform.userData = { type: type, size: size };
+            scene.add(platform);
+            platforms.push(platform);
+            solids.push({ left: x - size / 2, right: x + size / 2, bottom: y, top: y + size, platform });
+            return platform;
+        }
+
+        // Two-unit grid: overhead rows leave room for the player's full height.
+        // Grounded steps and pipe tops provide a route to the upper blocks.
+        [
+            [-8, 4, 'brick'], [-6, 4, 'question'], [-4, 4, 'brick'],
+            [4, 0, 'brick'], [6, 0, 'brick'], [6, 2, 'question'],
+            [12, 4, 'question'], [14, 4, 'brick'], [16, 4, 'question'],
+            [22, 4, 'brick'], [24, 4, 'question']
+        ].forEach(([x, bottom, type]) => createPlatform(x, bottom, 0, type));
+
+        // === PART 7: ENVIRONMENT DECORATIONS ===
+
+        const greenMat = new THREE.MeshLambertMaterial({ color: 0x00a844 });
+        const darkGreenMat = new THREE.MeshLambertMaterial({ color: 0x007a33 });
+        const bushMat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+
+        // Create pipes
+        function createPipe(x, z, height = 3) {
+            const pipeGroup = new THREE.Group();
+
+            // Pipe body
+            const body = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.8, 0.8, height, 8),
+                greenMat
+            );
+            body.position.y = height / 2;
+            body.castShadow = true;
+            pipeGroup.add(body);
+
+            // Pipe top rim
+            const rim = new THREE.Mesh(
+                new THREE.CylinderGeometry(1, 1, 0.4, 8),
+                darkGreenMat
+            );
+            rim.position.y = height;
+            rim.castShadow = true;
+            pipeGroup.add(rim);
+
+            // Inner dark part
+            const inner = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.7, 0.7, 0.1, 8),
+                new THREE.MeshLambertMaterial({ color: 0x003311 })
+            );
+            inner.position.y = height + 0.15;
+            pipeGroup.add(inner);
+
+            pipeGroup.position.set(x, 0, z);
+            scene.add(pipeGroup);
+            solids.push({ left: x - 1, right: x + 1, bottom: 0, top: height + 0.2 });
+            return pipeGroup;
+        }
+
+        createPipe(-2, 0, 2);
+        createPipe(10, 0, 3);
+        createPipe(28, 0, 2.5);
+
+        // Create bushes
+        function createBush(x, z, scale = 1) {
+            const bushGroup = new THREE.Group();
+            const bushGeo = new THREE.SphereGeometry(1, 6, 6);
+
+            const b1 = new THREE.Mesh(bushGeo, bushMat);
+            b1.position.set(0, 0.5, 0);
+            b1.scale.set(1.2, 0.8, 1.2);
+
+            const b2 = new THREE.Mesh(bushGeo, bushMat);
+            b2.position.set(0.8, 0.3, 0);
+            b2.scale.set(0.8, 0.6, 0.8);
+
+            const b3 = new THREE.Mesh(bushGeo, bushMat);
+            b3.position.set(-0.8, 0.3, 0);
+            b3.scale.set(0.8, 0.6, 0.8);
+
+            bushGroup.add(b1, b2, b3);
+            bushGroup.position.set(x, 0, z);
+            bushGroup.scale.set(scale, scale, scale);
+            scene.add(bushGroup);
+        }
+
+        createBush(-12, 2, 1.5);
+        createBush(3, 3, 1);
+        createBush(15, 1, 1.8);
+        createBush(32, 2, 1.2);
+
+        // === PART 8: ENEMIES (GOOMBAS) ===
+
+        const enemies = [];
+        const goombaBrown = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+        const goombaTan = new THREE.MeshLambertMaterial({ color: 0xd2a679 });
+
+        function createGoomba(x, z) {
+            const goomba = new THREE.Group();
+
+            // Body (dome shape)
+            const body = new THREE.Mesh(
+                new THREE.SphereGeometry(0.8, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+                goombaBrown
+            );
+            body.position.y = 0.6;
+            body.castShadow = true;
+            goomba.add(body);
+
+            // Face (tan color, flat bottom)
+            const face = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.6, 0.7, 0.4, 8),
+                goombaTan
+            );
+            face.position.y = 0.4;
+            goomba.add(face);
+
+            // Eyes (angry)
+            const eyeMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshLambertMaterial({ color: 0x000000 });
+
+            const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), eyeMat);
+            eyeL.position.set(-0.2, 0.5, 0.6);
+            goomba.add(eyeL);
+
+            const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), eyeMat);
+            eyeR.position.set(0.2, 0.5, 0.6);
+            goomba.add(eyeR);
+
+            const pupilL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), pupilMat);
+            pupilL.position.set(-0.22, 0.5, 0.68);
+            goomba.add(pupilL);
+
+            const pupilR = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), pupilMat);
+            pupilR.position.set(0.18, 0.5, 0.68);
+            goomba.add(pupilR);
+
+            // Feet
+            const footGeo = new THREE.BoxGeometry(0.3, 0.2, 0.5);
+            const footL = new THREE.Mesh(footGeo, goombaBrown);
+            footL.position.set(-0.3, 0.1, 0);
+            goomba.add(footL);
+
+            const footR = new THREE.Mesh(footGeo, goombaBrown);
+            footR.position.set(0.3, 0.1, 0);
+            goomba.add(footR);
+
+            // Enemy data
+            goomba.position.set(x, 0, z);
+            goomba.userData = {
+                velocity: new THREE.Vector3(2, 0, 0),
+                direction: 1,
+                patrolDistance: 5,
+                startX: x,
+                alive: true,
+                squashed: false
+            };
+
+            scene.add(goomba);
+            enemies.push(goomba);
+            return goomba;
+        }
+
+        createGoomba(-5, 0);
+        createGoomba(8, 0);
+        createGoomba(20, 0);
+        createGoomba(30, 0);
+
+        // === PART 9: COINS ===
+
+        const coins = [];
+        const coinGold = new THREE.MeshLambertMaterial({
+            color: 0xffd700,
+            emissive: 0xffaa00,
+            emissiveIntensity: 0.3
+        });
+
+        function createCoin(x, y, z) {
+            // Coin as a flat cylinder
+            const coin = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16),
+                coinGold
+            );
+            coin.position.set(x, y, z);
+            coin.rotation.x = Math.PI / 2; // Stand upright
+            coin.castShadow = true;
+            coin.userData = { collected: false, rotationSpeed: 2, baseY: y };
+            scene.add(coin);
+            coins.push(coin);
+            return coin;
+        }
+
+        // Coins along the ground path
+        for (let i = -14; i < 35; i += 3) {
+            createCoin(i, 1, 0);
+        }
+
+        // Coins above platforms
+        createCoin(-5, 3.5, 0);
+        createCoin(-2, 4.5, 0);
+        createCoin(2, 5.5, 0);
+        createCoin(5, 4.5, 0);
+        createCoin(12, 6.5, 0);
+        createCoin(15, 6.5, 0);
+        createCoin(18, 6.5, 0);
+        createCoin(22, 4.5, 0);
+        createCoin(25, 5.5, 0);
+
+        // Coin arc
+        for (let i = 0; i < 5; i++) {
+            createCoin(8 + i * 1.5, 3 + Math.sin(i * 0.8) * 1.5, 0);
+        }
+
+        // === FINISH LINE: FLAGPOLE ===
+        const flagpoleGroup = new THREE.Group();
+        const poleMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+        const flagMat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+
+        // Pole
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 10, 8), poleMat);
+        pole.position.y = 5;
+        pole.castShadow = true;
+        flagpoleGroup.add(pole);
+
+        // Flag
+        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2, 1.5), flagMat);
+        flag.position.set(0.05, 8, 0);
+        flag.castShadow = true;
+        flagpoleGroup.add(flag);
+
+        // Top ball
+        const topBall = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshLambertMaterial({ color: 0xffff00 }));
+        topBall.position.y = 10;
+        flagpoleGroup.add(topBall);
+
+        flagpoleGroup.position.set(38, 0, 0);
+        scene.add(flagpoleGroup);
+
+        // Flag animation
+        const flagMesh = flag;
+
+        // Win state
+        let gameWon = false;
+
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.addEventListener('blur', () => {
+            keys.left = keys.right = keys.jump = false;
+        });
+
+        function rewardBlock(platform) {
+            if (!platform || platform.userData.type !== 'question') return;
+            platform.userData.type = 'used';
+            platform.material = brickMat;
+            coinCount += 1;
+            score += 200;
+            document.getElementById('coin-count').textContent = coinCount;
+            document.getElementById('score').textContent = score;
+        }
+
+        function stepPlayer(dt) {
+            const halfWidth = playerWidth / 2;
+            const previousX = player.position.x;
+            const previousY = player.position.y;
+            player.position.x += physics.velocity.x * dt;
+
+            // Resolve movement on each axis using the position before the step.
+            for (const solid of solids) {
+                if (previousY >= solid.top - 0.00001 || previousY + playerHeight <= solid.bottom + 0.00001) continue;
+                if (player.position.x + halfWidth <= solid.left || player.position.x - halfWidth >= solid.right) continue;
+                if (physics.velocity.x > 0 && previousX + halfWidth <= solid.left + 0.00001) {
+                    player.position.x = solid.left - halfWidth;
+                    physics.velocity.x = 0;
+                } else if (physics.velocity.x < 0 && previousX - halfWidth >= solid.right - 0.00001) {
+                    player.position.x = solid.right + halfWidth;
+                    physics.velocity.x = 0;
+                }
+            }
+            player.position.x = THREE.MathUtils.clamp(player.position.x, -98, 98);
+            physics.velocity.y += physics.gravity * dt;
+            player.position.y += physics.velocity.y * dt;
+            physics.onGround = false;
+
+            for (const solid of solids) {
+                if (player.position.x + halfWidth <= solid.left + 0.00001 || player.position.x - halfWidth >= solid.right - 0.00001) continue;
+                if (physics.velocity.y <= 0 && previousY >= solid.top - 0.00001 && player.position.y <= solid.top) {
+                    player.position.y = solid.top;
+                    physics.velocity.y = 0;
+                    physics.onGround = true;
+                } else if (physics.velocity.y > 0 && previousY + playerHeight <= solid.bottom + 0.00001 && player.position.y + playerHeight >= solid.bottom) {
+                    player.position.y = solid.bottom - playerHeight;
+                    physics.velocity.y = 0;
+                    rewardBlock(solid.platform);
+                }
+            }
+            if (player.position.y <= 0) {
+                player.position.y = 0;
+                physics.velocity.y = 0;
+                physics.onGround = true;
+            }
+        }
+
+        // Animation loop
+        let lastTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const currentTime = performance.now();
+            const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
+            lastTime = currentTime;
+
+            // === UPDATE PLAYER PHYSICS ===
+
+            // Horizontal movement
+            if (keys.left) {
+                physics.velocity.x = -physics.moveSpeed;
+                player.rotation.y = Math.PI; // Face left
+            } else if (keys.right) {
+                physics.velocity.x = physics.moveSpeed;
+                player.rotation.y = 0; // Face right
+            } else {
+                physics.velocity.x = 0;
+            }
+
+            // Jump
+            if (keys.jump && physics.onGround) {
+                physics.velocity.y = physics.jumpForce;
+                physics.onGround = false;
+            }
+
+            // Small physics steps prevent passing through blocks on slow frames.
+            const steps = Math.max(1, Math.ceil(deltaTime / (1 / 120)));
+            for (let step = 0; step < steps; step++) stepPlayer(deltaTime / steps);
+            const playerBox = new THREE.Box3().setFromObject(player);
+
+            timeRemaining = Math.max(0, timeRemaining - deltaTime);
+            document.getElementById('timer').textContent = Math.ceil(timeRemaining);
+            if (timeRemaining === 0) {
+                player.position.set(-15, 0, 0);
+                physics.velocity.set(0, 0, 0);
+                timeRemaining = 400;
+            }
+
+            // === UPDATE ENEMIES ===
+            for (let enemy of enemies) {
+                if (!enemy.userData.alive) continue;
+
+                // Patrol AI
+                enemy.position.x += enemy.userData.velocity.x * enemy.userData.direction * deltaTime;
+
+                // Turn around at patrol boundaries
+                if (Math.abs(enemy.position.x - enemy.userData.startX) > enemy.userData.patrolDistance) {
+                    enemy.userData.direction *= -1;
+                    enemy.rotation.y = enemy.userData.direction > 0 ? 0 : Math.PI;
+                }
+
+                // Simple gravity for enemies
+                enemy.position.y += -15 * deltaTime;
+                if (enemy.position.y < 0) {
+                    enemy.position.y = 0;
+                }
+
+                // Walk animation (bob up and down)
+                enemy.position.y = Math.max(0, enemy.position.y + Math.sin(Date.now() * 0.01) * 0.001);
+
+                // === PLAYER-ENEMY COLLISION ===
+                const enemyBox = new THREE.Box3().setFromObject(enemy);
+                const playerBottom = player.position.y;
+                const enemyTop = enemy.position.y + 1.2;
+
+                if (playerBox.intersectsBox(enemyBox)) {
+                    // Check if player is landing on top of enemy
+                    if (physics.velocity.y < 0 && playerBottom > enemyTop - 0.3) {
+                        // Stomp the enemy!
+                        score += 100;
+                        document.getElementById('score').textContent = score;
+                        enemy.userData.alive = false;
+                        enemy.userData.squashed = true;
+                        enemy.scale.y = 0.3; // Squash effect
+                        physics.velocity.y = physics.jumpForce * 0.6; // Bounce
+                        scene.remove(enemy);
+                        physics.onGround = false;
+                    } else {
+                        // Player gets hurt - reset to start
+                        player.position.set(-15, 5, 0);
+                        physics.velocity.set(0, 0, 0);
+                        physics.onGround = false;
+                        break;
+                    }
+                }
+            }
+
+            // === UPDATE COINS ===
+            for (let i = coins.length - 1; i >= 0; i--) {
+                const coin = coins[i];
+                if (coin.userData.collected) continue;
+
+                // Spin the coin
+                coin.rotation.y += coin.userData.rotationSpeed * deltaTime;
+
+                // Float up and down slightly
+                coin.position.y = coin.userData.baseY + Math.sin(Date.now() * 0.003 + i) * 0.2;
+
+                // Check collision with player
+                const coinBox = new THREE.Box3().setFromObject(coin);
+                if (playerBox.intersectsBox(coinBox)) {
+                    // Collect coin!
+                    coin.userData.collected = true;
+                    scene.remove(coin);
+                    coins.splice(i, 1);
+                    coinCount++;
+                    score += 200;
+                    document.getElementById('coin-count').textContent = coinCount;
+                    document.getElementById('score').textContent = score;
+                }
+            }
+
+            // Animate flag waving
+            flagMesh.rotation.z = Math.sin(Date.now() * 0.005) * 0.1;
+            flagMesh.position.x = 0.05 + Math.sin(Date.now() * 0.005) * 0.05;
+
+            // Check win condition (reach the flagpole)
+            if (!gameWon && player.position.x > 36) {
+                gameWon = true;
+                score += timeRemaining * 50; // Time bonus
+                document.getElementById('score').textContent = score;
+                alert('🎉 YOU WIN! Final Score: ' + score + ' 🎉');
+            }
+
+            // Animate clouds slowly
+            clouds.forEach(cloud => {
+                cloud.position.x += 0.02;
+                if (cloud.position.x > 80) cloud.position.x = -80;
+            });
+
+            // Camera follows player (smooth)
+            const targetCamX = player.position.x + 8;
+            const targetCamZ = player.position.z + 12;
+            camera.position.x += (targetCamX - camera.position.x) * 0.1;
+            camera.position.z += (targetCamZ - camera.position.z) * 0.1;
+            camera.position.y = 8;
+            camera.lookAt(player.position.x, player.position.y + 3, player.position.z);
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        console.log('========================================');
+        console.log('🎮 LOW-POLY MARIO - GAME COMPLETE! 🎮');
+        console.log('========================================');
+        console.log('Controls: A/D or Arrow Keys to move');
+        console.log('          Space/W/Up to jump');
+        console.log('Goal: Reach the flagpole at the end!');
+        console.log('========================================');
+
+
+    </script>
+</body>
+</html>

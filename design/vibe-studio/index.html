@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOID/FORM — vibe code studio</title>
+  <meta name="description" content="A development studio operating in the space between code and consciousness" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- WebGL Canvas - The Void -->
+  <canvas id="void-canvas"></canvas>
+
+  <!-- Grain overlay -->
+  <div class="grain"></div>
+
+  <!-- Scanlines -->
+  <div class="scanlines"></div>
+
+  <!-- Custom cursor -->
+  <div class="cursor" id="cursor">
+    <div class="cursor-dot"></div>
+    <div class="cursor-ring"></div>
+    <div class="cursor-label" id="cursor-label"></div>
+  </div>
+
+  <!-- Loading veil -->
+  <div class="veil" id="veil">
+    <div class="veil-text">INITIALIZING VOID</div>
+    <div class="veil-progress"><div class="veil-bar" id="veil-bar"></div></div>
+  </div>
+
+  <!-- Main content - not sections, but floating manifestations -->
+  <main id="main">
+
+    <!-- ENTRY: The first point of light -->
+    <section class="manifestation" id="entry" data-depth="0">
+      <div class="void-point" id="void-point"></div>
+      <h1 class="glitch-title" data-text="VOID/FORM">
+        <span class="line">VOID</span>
+        <span class="slash">/</span>
+        <span class="line">FORM</span>
+      </h1>
+      <p class="entry-sub">a vibe code studio</p>
+      <div class="entry-hint">click to enter the void</div>
+    </section>
+
+    <!-- MANIFESTO: Text as particles -->
+    <section class="manifestation" id="manifesto" data-depth="1">
+      <div class="manifesto-container">
+        <div class="manifesto-line" data-particles>we do not write code</div>
+        <div class="manifesto-line" data-particles>we sculpt digital consciousness</div>
+        <div class="manifesto-line" data-particles>every pixel breathes</div>
+        <div class="manifesto-line" data-particles>every interaction resonates</div>
+      </div>
+      <div class="manifesto-ghost">01</div>
+    </section>
+
+    <!-- PROCESS: The flow state visualized -->
+    <section class="manifestation" id="process" data-depth="2">
+      <div class="flow-river" id="flow-river">
+        <div class="flow-node" style="--x: 10%; --y: 20%; --delay: 0s">
+          <span class="node-glyph">{ }</span>
+          <span class="node-text">dream</span>
+        </div>
+        <div class="flow-node" style="--x: 30%; --y: 60%; --delay: 0.5s">
+          <span class="node-glyph">&lt;/&gt;</span>
+          <span class="node-text">code</span>
+        </div>
+        <div class="flow-node" style="--x: 55%; --y: 30%; --delay: 1s">
+          <span class="node-glyph">◉</span>
+          <span class="node-text">flow</span>
+        </div>
+        <div class="flow-node" style="--x: 75%; --y: 70%; --delay: 1.5s">
+          <span class="node-glyph">∞</span>
+          <span class="node-text">ship</span>
+        </div>
+        <div class="flow-node" style="--x: 90%; --y: 40%; --delay: 2s">
+          <span class="node-glyph">✧</span>
+          <span class="node-text">repeat</span>
+        </div>
+      </div>
+      <div class="process-ghost">02</div>
+    </section>
+
+    <!-- WORK: Floating 3D orbs -->
+    <section class="manifestation" id="work" data-depth="3">
+      <div class="orb-field" id="orb-field">
+        <div class="orb" data-project="0" style="--ox: 15%; --oy: 25%; --size: 120px">
+          <div class="orb-core"></div>
+          <div class="orb-label">neural garden</div>
+          <div class="orb-meta">webGL / AI / 2024</div>
+        </div>
+        <div class="orb" data-project="1" style="--ox: 70%; --oy: 15%; --size: 90px">
+          <div class="orb-core"></div>
+          <div class="orb-label">synth os</div>
+          <div class="orb-meta">audio / real-time / 2024</div>
+        </div>
+        <div class="orb" data-project="2" style="--ox: 40%; --oy: 60%; --size: 150px">
+          <div class="orb-core"></div>
+          <div class="orb-label">void commerce</div>
+          <div class="orb-meta">e-commerce / 3D / 2023</div>
+        </div>
+        <div class="orb" data-project="3" style="--ox: 85%; --oy: 65%; --size: 100px">
+          <div class="orb-core"></div>
+          <div class="orb-label">particle dreams</div>
+          <div class="orb-meta">generative / art / 2023</div>
+        </div>
+        <div class="orb" data-project="4" style="--ox: 25%; --oy: 80%; --size: 110px">
+          <div class="orb-core"></div>
+          <div class="orb-label">flow state</div>
+          <div class="orb-meta">productivity / UX / 2024</div>
+        </div>
+      </div>
+      <div class="work-ghost">03</div>
+      <div class="work-hint">drag the orbs · click to explore</div>
+    </section>
+
+    <!-- CONTACT: The portal -->
+    <section class="manifestation" id="contact" data-depth="4">
+      <div class="portal" id="portal">
+        <div class="portal-ring ring-1"></div>
+        <div class="portal-ring ring-2"></div>
+        <div class="portal-ring ring-3"></div>
+        <div class="portal-core">
+          <span class="portal-text">enter</span>
+        </div>
+      </div>
+      <div class="contact-info">
+        <a href="mailto:void@form.studio" class="contact-link" data-hover>void@form.studio</a>
+        <div class="contact-socials">
+          <a href="#" class="social-link" data-hover>github</a>
+          <a href="#" class="social-link" data-hover>twitter</a>
+          <a href="#" class="social-link" data-hover>are.na</a>
+        </div>
+      </div>
+      <div class="contact-ghost">04</div>
+    </section>
+
+    <!-- FOOTER: Not a footer, a signature -->
+    <div class="signature" id="signature">
+      <span>© 2024 VOID/FORM — coded in flow state</span>
+      <span class="sig-glyph">◉</span>
+    </div>
+
+  </main>
+
+  <!-- Progress indicator - not a bar, a脉络 -->
+  <div class="pulse-indicator" id="pulse-indicator">
+    <div class="pulse-dot active" data-section="0"></div>
+    <div class="pulse-dot" data-section="1"></div>
+    <div class="pulse-dot" data-section="2"></div>
+    <div class="pulse-dot" data-section="3"></div>
+    <div class="pulse-dot" data-section="4"></div>
+  </div>
+
+  <!-- Time display -->
+  <div class="time-display" id="time-display">00:00:00</div>
+
+  <!-- Konami hint -->
+  <div class="easter-egg" id="easter-egg">↑↑↓↓←→←→BA</div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

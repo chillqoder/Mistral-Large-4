@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orc Warrior — War Hammer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1f; font-family: 'Segoe UI', Tahoma, sans-serif; }
+    #canvas-container { width: 100%; height: 100%; }
+    canvas { display: block; touch-action: none; }
+
+    #title {
+      position: absolute; top: 24px; left: 50%; transform: translateX(-50%);
+      color: #e8dcc4; font-size: 28px; font-weight: 700; letter-spacing: 2px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8); pointer-events: none;
+      text-transform: uppercase;
+    }
+    #hint {
+      position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+      color: #8a8578; font-size: 13px; letter-spacing: 1px; pointer-events: none;
+    }
+
+    #attackBtn {
+      position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+      padding: 16px 48px; font-size: 20px; font-weight: 700; letter-spacing: 2px;
+      color: #fff; background: linear-gradient(180deg, #8b1a1a, #5c0f0f);
+      border: 2px solid #c0392b; border-radius: 12px; cursor: pointer;
+      text-transform: uppercase; box-shadow: 0 0 20px rgba(192,57,43,0.4), 0 4px 0 #3d0a0a;
+      transition: all 0.1s ease; user-select: none;
+    }
+    #attackBtn:hover {
+      background: linear-gradient(180deg, #a52222, #7a1414);
+      box-shadow: 0 0 32px rgba(231,76,60,0.6), 0 4px 0 #3d0a0a;
+    }
+    #attackBtn:active {
+      transform: translateX(-50%) translateY(4px);
+      box-shadow: 0 0 12px rgba(192,57,43,0.3), 0 0 0 #3d0a0a;
+    }
+    #attackBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    #flash {
+      position: absolute; inset: 0; background: #fff; opacity: 0;
+      pointer-events: none; transition: opacity 0.05s;
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="title">Orc Warrior</div>
+  <div id="hint">Drag to rotate &middot; Scroll to zoom &middot; Click Attack to swing</div>
+  <button id="attackBtn">Attack!</button>
+  <div id="flash"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ── Renderer / Scene / Camera (Stage 17: near-frontal, slight three-quarter) ──
+    const container = document.getElementById('canvas-container');
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    // Stage 17: Neutral charcoal background
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x2a2a2e);
+    scene.fog = new THREE.Fog(0x2a2a2e, 15, 35);
+
+    // Stage 17: Camera at upper torso / lower face level, near-frontal with slight three-quarter
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(2.2, 2.0, 5.5);
+    camera.lookAt(0, 1.35, 0);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 1.35, 0);
+    controls.minDistance = 3.5;
+    controls.maxDistance = 10;
+    // Limit vertical rotation to keep view reasonable
+    controls.minPolarAngle = 0.3;
+    controls.maxPolarAngle = 1.7;
+
+    // ── Lights (Stage 17: broad soft key, gentle fill, subtle edge light) ──
+    function setupLights() {
+      // Ambient fill — gentle, neutral
+      const ambient = new THREE.AmbientLight(0x404050, 0.4);
+      scene.add(ambient);
+
+      // Hemisphere light for soft sky/ground bounce
+      const hemi = new THREE.HemisphereLight(0x8a9ab5, 0x3a3025, 0.6);
+      scene.add(hemi);
+
+      // Stage 17: Broad soft key light from upper front-left
+      const keyLight = new THREE.DirectionalLight(0xfff0e0, 2.5);
+      keyLight.position.set(-3, 6, 4);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(2048, 2048);
+      keyLight.shadow.camera.left = -5; keyLight.shadow.camera.right = 5;
+      keyLight.shadow.camera.top = 7; keyLight.shadow.camera.bottom = -3;
+      keyLight.shadow.camera.near = 0.5; keyLight.shadow.camera.far = 20;
+      keyLight.shadow.bias = -0.0003;
+      keyLight.shadow.normalBias = 0.02;
+      scene.add(keyLight);
+
+      // Stage 17: Gentle fill light from front-right (reveals face, hands, abdomen)
+      const fillLight = new THREE.DirectionalLight(0x8a9ab5, 0.8);
+      fillLight.position.set(4, 2, 5);
+      scene.add(fillLight);
+
+      // Stage 17: Subtle edge/rim light from behind to separate from background
+      const rimLight = new THREE.DirectionalLight(0x6a7a9a, 1.2);
+      rimLight.position.set(2, 4, -6);
+      scene.add(rimLight);
+
+      // Second rim from other side for ears and hammer
+      const rimLight2 = new THREE.DirectionalLight(0x5a6a8a, 0.6);
+      rimLight2.position.set(-3, 3, -4);
+      scene.add(rimLight2);
+    }
+
+    // ── Ground (Stage 17: simple muted circular surface) ──────────────────
+    function setupGround() {
+      // Main ground — muted charcoal
+      const geo = new THREE.CircleGeometry(10, 48);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.95, metalness: 0.0 });
+      const ground = new THREE.Mesh(geo, mat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Character platform — slightly lighter circular disc
+      const platformGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.08, 48);
+      const platformMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4e, roughness: 0.9, metalness: 0.05 });
+      const platform = new THREE.Mesh(platformGeo, platformMat);
+      platform.position.y = -0.04;
+      platform.receiveShadow = true;
+      platform.castShadow = true;
+      scene.add(platform);
+
+      // Platform edge ring
+      const ringGeo = new THREE.RingGeometry(2.2, 2.35, 48);
+      const ringMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 1, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.001;
+      ring.receiveShadow = true;
+      scene.add(ring);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    // Stage 15: olive green base with controlled variation
+    const skinMat = () => new THREE.MeshStandardMaterial({ color: 0x6b8e4e, roughness: 0.65, metalness: 0.05 });      // base olive
+    const skinLightMat = () => new THREE.MeshStandardMaterial({ color: 0x7da55a, roughness: 0.6, metalness: 0.05 });  // lighter warm (forehead, cheekbones, chest)
+    const skinDarkMat = () => new THREE.MeshStandardMaterial({ color: 0x4a6b35, roughness: 0.75, metalness: 0.05 });   // darker (sockets, under jaw, folds)
+    const skinDeepMat = () => new THREE.MeshStandardMaterial({ color: 0x3a5228, roughness: 0.8, metalness: 0.05 });    // deepest (inner ears, nostrils)
+    const leatherMat = () => new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.85, metalness: 0.0 });      // worn leather
+    const leatherDarkMat = () => new THREE.MeshStandardMaterial({ color: 0x4a2e18, roughness: 0.9, metalness: 0.0 });   // dark leather (belt, straps)
+    const metalMat = () => new THREE.MeshStandardMaterial({ color: 0x6a6f78, roughness: 0.35, metalness: 0.85 });      // dark iron
+    const metalDarkMat = () => new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.5, metalness: 0.7 });    // dark worn iron
+    const woodMat = () => new THREE.MeshStandardMaterial({ color: 0x7a4e2a, roughness: 0.75, metalness: 0.0 });        // warm dark wood
+    const clothMat = () => new THREE.MeshStandardMaterial({ color: 0x4a3525, roughness: 0.95, metalness: 0.0 });       // rough cloth
+    const tuskMat = () => new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.35, metalness: 0.0 });       // aged ivory
+    const hairMat = () => new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.9, metalness: 0.0 });         // coarse black hair
+
+    function addMesh(parent, geo, mat, x=0, y=0, z=0, rx=0, ry=0, rz=0, cast=true) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.rotation.set(rx, ry, rz);
+      m.castShadow = cast;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
+    }
+
+    // ── Orc Character ──────────────────────────────────────────────────────
+    let orc, torso, rightArmGroup, rightForearmGroup, rightHandGroup, leftArmGroup, leftForearmGroup, leftHandGroup, hammer;
+    const restPose = {};
+
+    function createOrc() {
+      orc = new THREE.Group();
+      orc.name = 'orc';
+      scene.add(orc);
+
+      // ── Hips / Pelvis (Stage 1: narrower than shoulders but broad enough to support torso) ──
+      const hips = new THREE.Group();
+      hips.position.y = 1.45;
+      orc.add(hips);
+      // Pelvis — solid, supports heavy torso
+      const pelvis = addMesh(hips, new THREE.BoxGeometry(0.75, 0.4, 0.5), skinDarkMat(), 0, 0, 0);
+      pelvis.scale.set(1.0, 1.0, 1.0);
+      // Hip bones (slightly protruding)
+      addMesh(hips, new THREE.SphereGeometry(0.14, 10, 8), skinMat(), -0.35, 0.05, 0.05);
+      addMesh(hips, new THREE.SphereGeometry(0.14, 10, 8), skinMat(), 0.35, 0.05, 0.05);
+
+      // Stage 11: Dark close-fitting rough fabric underlayer (visible around upper thighs)
+      const underlayer = addMesh(hips, new THREE.BoxGeometry(0.7, 0.35, 0.45), clothMat(), 0, -0.2, 0.05);
+
+      // ── Torso (Stage 2: connected anatomical structure) ──
+      torso = new THREE.Group();
+      torso.position.y = 0.55;
+      hips.add(torso);
+
+      // Stage 2: Rib cage — broad, deep, barrel-shaped profile
+      const ribcage = addMesh(torso, new THREE.CapsuleGeometry(0.55, 0.5, 10, 14), skinMat(), 0, 0.18, 0);
+      ribcage.scale.set(1.2, 1.0, 0.9);
+
+      // Stage 2: Large pectoral muscles — broad upper surfaces, softly defined lower edges
+      // Left pec
+      const pecL = addMesh(torso, new THREE.SphereGeometry(0.28, 16, 12), skinLightMat(), -0.28, 0.28, 0.15);
+      pecL.scale.set(1.0, 0.75, 0.85);
+      // Right pec
+      const pecR = addMesh(torso, new THREE.SphereGeometry(0.28, 16, 12), skinLightMat(), 0.28, 0.28, 0.15);
+      pecR.scale.set(1.0, 0.75, 0.85);
+
+      // Sternum groove — shallow central depression (not deep artificial split)
+      addMesh(torso, new THREE.BoxGeometry(0.06, 0.35, 0.04), skinDeepMat(), 0, 0.22, 0.38);
+
+      // Stage 2: Abdomen — integrated muscular forms beneath continuous skin surface
+      // Base abdominal mass (continuous skin, not separate spheres)
+      const abdomen = addMesh(torso, new THREE.SphereGeometry(0.45, 18, 14), skinMat(), 0, -0.15, 0.08);
+      abdomen.scale.set(1.05, 0.85, 0.7);
+
+      // Suggest three paired abdominal sections through subtle volume (shallow transitions)
+      // Upper abs — broader
+      addMesh(torso, new THREE.SphereGeometry(0.16, 12, 10), skinLightMat(), -0.14, -0.02, 0.42);
+      addMesh(torso, new THREE.SphereGeometry(0.16, 12, 10), skinLightMat(), 0.14, -0.02, 0.42);
+      // Middle abs
+      addMesh(torso, new THREE.SphereGeometry(0.14, 12, 10), skinLightMat(), -0.13, -0.16, 0.4);
+      addMesh(torso, new THREE.SphereGeometry(0.14, 12, 10), skinLightMat(), 0.14, -0.16, 0.4);
+      // Lower abs — softer toward belt
+      addMesh(torso, new THREE.SphereGeometry(0.12, 12, 10), skinMat(), -0.12, -0.3, 0.38);
+      addMesh(torso, new THREE.SphereGeometry(0.12, 12, 10), skinMat(), 0.13, -0.3, 0.38);
+
+      // Shallow center line (linea alba) — subtle, not deep channel
+      addMesh(torso, new THREE.BoxGeometry(0.03, 0.35, 0.02), skinDarkMat(), 0, -0.15, 0.44);
+
+      // Horizontal transitions between ab rows — very shallow
+      addMesh(torso, new THREE.BoxGeometry(0.28, 0.015, 0.02), skinDarkMat(), 0, -0.08, 0.44);
+      addMesh(torso, new THREE.BoxGeometry(0.26, 0.015, 0.02), skinDarkMat(), 0, -0.22, 0.42);
+
+      // Stage 2: Oblique muscles — flow diagonally toward pelvis
+      const obliqueL = addMesh(torso, new THREE.BoxGeometry(0.2, 0.3, 0.08), skinDarkMat(), -0.42, -0.15, 0.25, 0, 0, 0.4);
+      obliqueL.scale.set(1.0, 1.0, 1.0);
+      const obliqueR = addMesh(torso, new THREE.BoxGeometry(0.2, 0.3, 0.08), skinDarkMat(), 0.42, -0.15, 0.25, 0, 0, -0.4);
+
+      // Stage 2: Natural waist softness — slight mass over the muscle
+      const waist = addMesh(torso, new THREE.SphereGeometry(0.38, 16, 12), skinMat(), 0, -0.32, 0.05);
+      waist.scale.set(1.0, 0.4, 0.75);
+
+      // Stage 2: Small, understated navel on centerline above belt
+      addMesh(torso, new THREE.SphereGeometry(0.04, 8, 6), skinDeepMat(), 0, -0.28, 0.42);
+      addMesh(torso, new THREE.SphereGeometry(0.025, 6, 6), skinDarkMat(), 0, -0.28, 0.44);
+
+      // ── Chest harness (Stage 10: leather straps connecting pauldrons) ──
+      // Horizontal chest strap
+      addMesh(torso, new THREE.BoxGeometry(0.9, 0.06, 0.08), leatherDarkMat(), 0, 0.15, 0.32, 0.15, 0, 0);
+      // Diagonal straps from pauldrons to belt
+      addMesh(torso, new THREE.BoxGeometry(0.06, 0.5, 0.08), leatherDarkMat(), -0.4, -0.05, 0.15, 0.5, 0, 0.3);
+      addMesh(torso, new THREE.BoxGeometry(0.06, 0.5, 0.08), leatherDarkMat(), 0.4, -0.05, 0.15, 0.5, 0, -0.3);
+
+      // ── Belt (Stage 11: wide dark reddish-brown leather belt with buckle) ──
+      const beltY = -0.38;
+      // Main belt band — wide, with thickness
+      const belt = addMesh(torso, new THREE.BoxGeometry(0.85, 0.12, 0.55), leatherDarkMat(), 0, beltY, 0.05);
+      belt.scale.set(1.0, 1.0, 1.0);
+      // Belt upper edge (slightly curved, lighter from wear)
+      addMesh(torso, new THREE.BoxGeometry(0.85, 0.02, 0.55), new THREE.MeshStandardMaterial({ color: 0x7a4a2e, roughness: 0.7 }), 0, beltY + 0.06, 0.05);
+      // Belt lower edge
+      addMesh(torso, new THREE.BoxGeometry(0.85, 0.02, 0.55), new THREE.MeshStandardMaterial({ color: 0x3a2412, roughness: 0.9 }), 0, beltY - 0.06, 0.05);
+
+      // Belt buckle — practical dull iron at front
+      const buckle = addMesh(torso, new THREE.BoxGeometry(0.14, 0.12, 0.06), metalDarkMat(), 0, beltY, 0.32);
+      // Buckle frame (hollow center suggestion)
+      addMesh(torso, new THREE.BoxGeometry(0.1, 0.08, 0.02), leatherDarkMat(), 0, beltY, 0.35);
+      // Belt tongue (through buckle)
+      addMesh(torso, new THREE.BoxGeometry(0.08, 0.1, 0.03), new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.8 }), 0, beltY - 0.02, 0.33);
+      // Punched holes in belt
+      for (let i = 0; i < 4; i++) {
+        addMesh(torso, new THREE.CylinderGeometry(0.015, 0.015, 0.06, 8), new THREE.MeshStandardMaterial({ color: 0x2a1a0e }), 0.25 - i * 0.08, beltY, 0.33, 0, 0, Math.PI / 2);
+      }
+      // Keeper loop (holds belt tongue)
+      addMesh(torso, new THREE.BoxGeometry(0.06, 0.1, 0.04), leatherMat(), 0.1, beltY, 0.33);
+
+      // ── Loincloth (Stage 11: heavy brown front panel with folds, thickness, asymmetry) ──
+      // Main front panel — hangs to middle of thighs
+      const loincloth = new THREE.Group();
+      loincloth.position.set(0, beltY - 0.08, 0.25);
+      hips.add(loincloth);
+
+      // Panel shape — wider at attachment, narrower toward bottom, asymmetric hem
+      const panelShape = new THREE.Shape();
+      panelShape.moveTo(-0.35, 0);
+      panelShape.lineTo(0.35, 0);
+      panelShape.lineTo(0.32, -0.15);
+      panelShape.lineTo(0.28, -0.4);
+      panelShape.lineTo(0.15, -0.48);
+      panelShape.lineTo(0.05, -0.42);
+      panelShape.lineTo(-0.05, -0.5);
+      panelShape.lineTo(-0.18, -0.44);
+      panelShape.lineTo(-0.3, -0.35);
+      panelShape.lineTo(-0.32, -0.15);
+      panelShape.closePath();
+
+      const panelGeo = new THREE.ExtrudeGeometry(panelShape, {
+        depth: 0.04,
+        bevelEnabled: true,
+        bevelThickness: 0.01,
+        bevelSize: 0.01,
+        bevelSegments: 2,
+        curveSegments: 8
+      });
+      const panel = new THREE.Mesh(panelGeo, leatherMat());
+      panel.castShadow = true;
+      panel.receiveShadow = true;
+      loincloth.add(panel);
+
+      // Panel thickness / shaded reverse side
+      const panelBack = new THREE.Mesh(panelGeo, leatherDarkMat());
+      panelBack.position.z = -0.04;
+      panelBack.castShadow = true;
+      loincloth.add(panelBack);
+
+      // Gravity-driven folds (vertical creases)
+      const foldMat = leatherDarkMat();
+      addMesh(loincloth, new THREE.BoxGeometry(0.02, 0.4, 0.01), foldMat, -0.15, -0.2, 0.03);
+      addMesh(loincloth, new THREE.BoxGeometry(0.02, 0.35, 0.01), foldMat, 0, -0.22, 0.03);
+      addMesh(loincloth, new THREE.BoxGeometry(0.02, 0.3, 0.01), foldMat, 0.15, -0.18, 0.03);
+
+      // Broad creases across surface
+      addMesh(loincloth, new THREE.BoxGeometry(0.5, 0.015, 0.01), foldMat, 0, -0.12, 0.03);
+      addMesh(loincloth, new THREE.BoxGeometry(0.4, 0.015, 0.01), foldMat, 0, -0.3, 0.03);
+
+      // Edge stitching (visible seam near edges)
+      const stitchMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.9 });
+      addMesh(loincloth, new THREE.BoxGeometry(0.01, 0.5, 0.005), stitchMat, -0.33, -0.25, 0.025);
+      addMesh(loincloth, new THREE.BoxGeometry(0.01, 0.5, 0.005), stitchMat, 0.33, -0.25, 0.025);
+
+      // Mild wear at lower corners
+      addMesh(loincloth, new THREE.BoxGeometry(0.06, 0.04, 0.01), new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.95, opacity: 0.7, transparent: true }), -0.28, -0.42, 0.025);
+      addMesh(loincloth, new THREE.BoxGeometry(0.06, 0.04, 0.01), new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.95, opacity: 0.7, transparent: true }), 0.27, -0.45, 0.025);
+
+      // Side panels (smaller, for completeness)
+      const sidePanelL = addMesh(hips, new THREE.BoxGeometry(0.08, 0.35, 0.25), leatherMat(), -0.35, -0.3, 0.1, 0, 0, 0.2);
+      const sidePanelR = addMesh(hips, new THREE.BoxGeometry(0.08, 0.35, 0.25), leatherMat(), 0.35, -0.3, 0.1, 0, 0, -0.2);
+
+      // ── Neck (Stage 1: thick neck supporting oversized head) ──
+      addMesh(torso, new THREE.CylinderGeometry(0.2, 0.26, 0.4, 12), skinDarkMat(), 0, 0.68, 0);
+      // Trapezius muscles rising from shoulders to neck
+      addMesh(torso, new THREE.BoxGeometry(0.5, 0.15, 0.3), skinDarkMat(), -0.35, 0.55, -0.1, 0.3, 0, 0.2);
+      addMesh(torso, new THREE.BoxGeometry(0.5, 0.15, 0.3), skinDarkMat(), 0.35, 0.55, -0.1, 0.3, 0, -0.2);
+
+      // ── Head (Stages 3-7: rebuilt with proper anatomy) ──
+      const head = new THREE.Group();
+      head.position.y = 0.92;
+      head.rotation.x = -0.05; // slight downward tilt for stern expression
+      torso.add(head);
+
+      // Stage 3: Cranium — rounded but not spherical, sloped forehead, broad temples
+      const skull = addMesh(head, new THREE.SphereGeometry(0.42, 24, 18), skinMat(), 0, 0.02, 0);
+      skull.scale.set(0.95, 1.1, 1.0);
+
+      // Forehead — gently sloped, lighter warm green (Stage 15)
+      const forehead = addMesh(head, new THREE.SphereGeometry(0.38, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), skinLightMat(), 0, 0.08, 0.08);
+      forehead.scale.set(0.95, 0.9, 0.85);
+
+      // Temples — broad, slightly indented
+      addMesh(head, new THREE.SphereGeometry(0.12, 12, 10), skinDarkMat(), -0.38, 0.05, 0.05);
+      addMesh(head, new THREE.SphereGeometry(0.12, 12, 10), skinDarkMat(), 0.38, 0.05, 0.05);
+
+      // Cheekbones — pronounced, lighter warm green
+      addMesh(head, new THREE.BoxGeometry(0.18, 0.12, 0.15), skinLightMat(), -0.28, -0.08, 0.28, 0, 0, 0.15);
+      addMesh(head, new THREE.BoxGeometry(0.18, 0.12, 0.15), skinLightMat(), 0.28, -0.08, 0.28, 0, 0, -0.15);
+
+      // Stage 3: Jaw — wide, angular, integrated with skull, substantial chin projection
+      const jaw = addMesh(head, new THREE.BoxGeometry(0.58, 0.28, 0.5), skinDarkMat(), 0, -0.26, 0.08);
+      jaw.scale.set(1.0, 1.0, 0.95);
+
+      // Chin — projects forward, integrated (not a separate block)
+      const chin = addMesh(head, new THREE.SphereGeometry(0.14, 14, 10), skinMat(), 0, -0.34, 0.32);
+      chin.scale.set(1.0, 0.7, 0.8);
+
+      // Stage 3: Muzzle region — short, broad, integrated into cheeks and jaw
+      const muzzle = addMesh(head, new THREE.SphereGeometry(0.22, 16, 12), skinMat(), 0, -0.18, 0.28);
+      muzzle.scale.set(1.1, 0.65, 0.75);
+
+      // Stage 5: Brow ridge — strong anatomical structure across eye sockets
+      const browRidge = addMesh(head, new THREE.BoxGeometry(0.72, 0.12, 0.2), skinDarkMat(), 0, 0.1, 0.3);
+      browRidge.scale.set(1.0, 1.0, 1.0);
+
+      // Brow ridge side extensions
+      addMesh(head, new THREE.BoxGeometry(0.15, 0.1, 0.15), skinDarkMat(), -0.35, 0.08, 0.25, 0, 0, 0.2);
+      addMesh(head, new THREE.BoxGeometry(0.15, 0.1, 0.15), skinDarkMat(), 0.35, 0.08, 0.25, 0, 0, -0.2);
+
+      // Stage 4: Eye sockets — recessed areas for eyes
+      const socketMat = skinDeepMat();
+      addMesh(head, new THREE.SphereGeometry(0.11, 12, 10), socketMat, -0.16, 0.04, 0.28);
+      addMesh(head, new THREE.SphereGeometry(0.11, 12, 10), socketMat, 0.16, 0.04, 0.28);
+
+      // Stage 4: Eyes — almond-shaped, seated in sockets, with lids
+      // Sclera (warm ivory, not pure white)
+      const scleraMat = new THREE.MeshStandardMaterial({ color: 0xf0e8d0, roughness: 0.3 });
+      // Iris (muted amber-gold with darker outer ring)
+      const irisMat = new THREE.MeshStandardMaterial({ color: 0xc8963e, roughness: 0.4 });
+      const irisRingMat = new THREE.MeshStandardMaterial({ color: 0x6b4a1a, roughness: 0.5 });
+
+      function createEye(side) {
+        const sign = side === 'right' ? -1 : 1; // character's right = viewer's left
+        const eyeGroup = new THREE.Group();
+        eyeGroup.position.set(0.16 * sign, 0.04, 0.32);
+        head.add(eyeGroup);
+
+        // Eyeball — slightly recessed in socket
+        const eyeball = addMesh(eyeGroup, new THREE.SphereGeometry(0.075, 16, 12), scleraMat, 0, 0, 0);
+        eyeball.scale.set(0.8, 0.7, 0.6); // almond shape
+
+        // Iris
+        const iris = addMesh(eyeGroup, new THREE.SphereGeometry(0.038, 12, 10), irisMat, 0, 0, 0.045);
+        iris.scale.set(0.8, 0.7, 0.4);
+
+        // Iris outer ring (darker)
+        const irisRing = addMesh(eyeGroup, new THREE.TorusGeometry(0.04, 0.008, 8, 16), irisRingMat, 0, 0, 0.048, Math.PI / 2, 0, 0);
+
+        // Pupil (round black, pointing forward)
+        addMesh(eyeGroup, new THREE.SphereGeometry(0.018, 10, 8), new THREE.MeshStandardMaterial({ color: 0x0a0505 }), 0, 0, 0.052);
+
+        // Small light reflection (same position for both eyes)
+        addMesh(eyeGroup, new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.6 }), -0.02, 0.015, 0.055);
+
+        // Upper eyelid — heavier, overlaps upper iris (skin colored)
+        const upperLid = addMesh(eyeGroup, new THREE.SphereGeometry(0.08, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), skinMat(), 0, 0.01, 0.01);
+        upperLid.scale.set(0.85, 0.6, 0.7);
+
+        // Lower eyelid — touches lower iris edge
+        const lowerLid = addMesh(eyeGroup, new THREE.SphereGeometry(0.078, 12, 8, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55), skinDarkMat(), 0, -0.012, 0.008);
+        lowerLid.scale.set(0.85, 0.4, 0.7);
+
+        // Lower eyelid crease (shallow line underneath)
+        addMesh(eyeGroup, new THREE.BoxGeometry(0.12, 0.008, 0.02), skinDeepMat(), 0, -0.035, 0.02);
+
+        // Character's right eye (viewer's left): slightly narrower, skeptical squint
+        if (side === 'right') {
+          eyeGroup.scale.y = 0.85;
+          upperLid.scale.y = 0.5;
+        } else {
+          // Character's left eye (viewer's right): marginally wider
+          eyeGroup.scale.y = 1.0;
+        }
+
+        return eyeGroup;
+      }
+
+      createEye('right'); // character's right = viewer's left
+      createEye('left');  // character's left = viewer's right
+
+      // Stage 5: Eyebrows — substantial, dark charcoal-black, coarse
+      const browMat = new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.95 });
+
+      // Right eyebrow (character's right, viewer's left) — inner section angled down more
+      const rightBrow = addMesh(head, new THREE.BoxGeometry(0.28, 0.045, 0.06), browMat, -0.17, 0.18, 0.34, 0, 0, -0.15);
+      rightBrow.scale.set(1.0, 1.0, 1.0);
+      // Right brow inner section — angled down
+      addMesh(head, new THREE.BoxGeometry(0.1, 0.04, 0.05), browMat, -0.26, 0.15, 0.33, 0, 0, 0.25);
+      // Right brow outer section — raised slightly, with interruption (scar gap)
+      addMesh(head, new THREE.BoxGeometry(0.08, 0.04, 0.05), browMat, -0.08, 0.2, 0.34, 0, 0, -0.3);
+
+      // Left eyebrow (character's left, viewer's right) — higher outer arch
+      const leftBrow = addMesh(head, new THREE.BoxGeometry(0.28, 0.045, 0.06), browMat, 0.17, 0.19, 0.34, 0, 0, 0.15);
+      // Left brow outer section — higher arch
+      addMesh(head, new THREE.BoxGeometry(0.1, 0.04, 0.05), browMat, 0.26, 0.22, 0.34, 0, 0, -0.25);
+
+      // Forehead creases (Stage 5: 1-2 broad, restrained)
+      const creaseMat = skinDeepMat();
+      addMesh(head, new THREE.BoxGeometry(0.3, 0.008, 0.02), creaseMat, 0, 0.28, 0.32);
+      addMesh(head, new THREE.BoxGeometry(0.2, 0.008, 0.02), creaseMat, 0, 0.34, 0.3);
+
+      // Vertical compression creases between brows
+      addMesh(head, new THREE.BoxGeometry(0.015, 0.04, 0.02), creaseMat, -0.04, 0.12, 0.33, 0, 0, 0.1);
+      addMesh(head, new THREE.BoxGeometry(0.015, 0.04, 0.02), creaseMat, 0.04, 0.12, 0.33, 0, 0, -0.1);
+
+      // Stage 6: Nose — short, broad, thick bridge, blunt tip, wide nostril wings
+      // Nose bridge
+      const noseBridge = addMesh(head, new THREE.BoxGeometry(0.12, 0.18, 0.1), skinLightMat(), 0, 0.02, 0.32);
+      // Nose tip — blunt, slightly warmer green
+      const noseTip = addMesh(head, new THREE.SphereGeometry(0.09, 14, 10), skinLightMat(), 0, -0.06, 0.38);
+      noseTip.scale.set(1.0, 0.7, 0.8);
+      // Nostril wings — wide, angled downward and outward
+      addMesh(head, new THREE.SphereGeometry(0.045, 10, 8), skinDarkMat(), -0.08, -0.1, 0.36);
+      addMesh(head, new THREE.SphereGeometry(0.045, 10, 8), skinDarkMat(), 0.08, -0.1, 0.36);
+      // Nostril openings — shaded recesses (not flat black circles)
+      addMesh(head, new THREE.CircleGeometry(0.025, 8), skinDeepMat(), -0.075, -0.1, 0.4, 0, 0.3, 0);
+      addMesh(head, new THREE.CircleGeometry(0.025, 8), skinDeepMat(), 0.075, -0.1, 0.4, 0, -0.3, 0);
+
+      // Stage 6: Mouth — integrated upper lip, lower lip, mouth opening
+      // Upper lip — thinner, slightly darker
+      const upperLip = addMesh(head, new THREE.SphereGeometry(0.14, 14, 10), skinDarkMat(), 0, -0.2, 0.38);
+      upperLip.scale.set(1.0, 0.35, 0.6);
+
+      // Mouth opening — mostly closed, slight parting around tusks
+      const mouthOpening = addMesh(head, new THREE.BoxGeometry(0.22, 0.04, 0.04), new THREE.MeshStandardMaterial({ color: 0x2a1210, roughness: 0.9 }), 0, -0.24, 0.4);
+
+      // Lower lip — fuller, projects forward
+      const lowerLipM = addMesh(head, new THREE.SphereGeometry(0.13, 14, 10), skinMat(), 0, -0.28, 0.38);
+      lowerLipM.scale.set(1.0, 0.5, 0.7);
+
+      // Philtrum — shallow groove between nose and upper lip
+      addMesh(head, new THREE.BoxGeometry(0.04, 0.06, 0.02), skinDeepMat(), 0, -0.12, 0.4);
+
+      // Mentolabial sulcus — soft indentation beneath lower lip before chin
+      addMesh(head, new THREE.BoxGeometry(0.15, 0.03, 0.02), skinDeepMat(), 0, -0.32, 0.36);
+
+      // Mouth corners — curve downward very slightly
+      addMesh(head, new THREE.SphereGeometry(0.03, 8, 6), skinDarkMat(), -0.13, -0.23, 0.38);
+      addMesh(head, new THREE.SphereGeometry(0.03, 8, 6), skinDarkMat(), 0.13, -0.23, 0.38);
+
+      // Nasolabial folds — shallow folds from nose sides to mouth corners
+      addMesh(head, new THREE.BoxGeometry(0.02, 0.12, 0.015), skinDeepMat(), -0.1, -0.16, 0.4, 0, 0, 0.2);
+      addMesh(head, new THREE.BoxGeometry(0.02, 0.12, 0.015), skinDeepMat(), 0.1, -0.16, 0.4, 0, 0, -0.2);
+
+      // Stage 6: Tusks — from lower gum line, lips wrap around bases
+      // Right tusk (character's right) — with worn chip at tip
+      const rightTusk = addMesh(head, new THREE.ConeGeometry(0.045, 0.2, 10), tuskMat(), -0.11, -0.28, 0.36, 0.15, 0, 0.08);
+      // Chip on right tusk tip (small missing piece effect — darker)
+      addMesh(head, new THREE.BoxGeometry(0.02, 0.03, 0.02), new THREE.MeshStandardMaterial({ color: 0xc8b898, roughness: 0.5 }), -0.115, -0.2, 0.38);
+
+      // Left tusk (character's left) — smoother surface
+      addMesh(head, new THREE.ConeGeometry(0.045, 0.2, 10), tuskMat(), 0.11, -0.28, 0.36, 0.15, 0, -0.08);
+
+      // Tusk bases — warm yellowing (aged ivory)
+      addMesh(head, new THREE.TorusGeometry(0.046, 0.012, 6, 10), new THREE.MeshStandardMaterial({ color: 0xd4c8a0, roughness: 0.5 }), -0.11, -0.32, 0.35, Math.PI / 2, 0, 0);
+      addMesh(head, new THREE.TorusGeometry(0.046, 0.012, 6, 10), new THREE.MeshStandardMaterial({ color: 0xd4c8a0, roughness: 0.5 }), 0.11, -0.32, 0.35, Math.PI / 2, 0, 0);
+
+      // Stage 7: Ears — thick base, pointed tip, inner bowl, notch on left ear
+      function createEar(side) {
+        const sign = side === 'right' ? -1 : 1;
+        const earGroup = new THREE.Group();
+        earGroup.position.set(0.4 * sign, 0.0, -0.02);
+        earGroup.rotation.z = 0.3 * sign; // angle outward and slightly backward
+        head.add(earGroup);
+
+        // Ear base — thick
+        addMesh(earGroup, new THREE.SphereGeometry(0.08, 12, 10), skinMat(), 0, 0, 0);
+
+        // Outer rim — clear edge
+        addMesh(earGroup, new THREE.ConeGeometry(0.05, 0.18, 8), skinMat(), 0.02 * sign, 0.04, 0, 0, 0, 0.4 * sign);
+
+        // Inner bowl — darker olive
+        addMesh(earGroup, new THREE.SphereGeometry(0.045, 10, 8), skinDeepMat(), 0.01 * sign, 0, 0.01);
+
+        // Pointed tip
+        addMesh(earGroup, new THREE.ConeGeometry(0.025, 0.1, 6), skinLightMat(), 0.04 * sign, 0.12, 0, 0, 0, 0.5 * sign);
+
+        // Left ear notch (small healed notch)
+        if (side === 'left') {
+          addMesh(earGroup, new THREE.BoxGeometry(0.02, 0.04, 0.02), skinDarkMat(), -0.03, 0.06, 0);
+        }
+
+        return earGroup;
+      }
+
+      createEar('right');
+      createEar('left');
+
+      // Stage 7: Mohawk — multiple connected clumps of coarse black hair
+      // Base of mohawk (shaved scalp transition — dark stubble)
+      addMesh(head, new THREE.BoxGeometry(0.12, 0.04, 0.35), new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.95 }), 0, 0.38, -0.05);
+
+      // Multiple hair clumps — uneven crest, tallest near crown
+      const hairPositions = [
+        { x: 0, y: 0.48, z: -0.15, scale: 0.7, rot: 0.1 },    // front
+        { x: -0.02, y: 0.52, z: -0.08, scale: 0.85, rot: -0.05 }, // near crown (tallest)
+        { x: 0.02, y: 0.55, z: 0, scale: 1.0, rot: 0 },        // crown (tallest)
+        { x: -0.01, y: 0.52, z: 0.08, scale: 0.85, rot: 0.08 }, // back of crown
+        { x: 0.01, y: 0.47, z: 0.15, scale: 0.7, rot: -0.1 },  // toward back
+        { x: 0, y: 0.42, z: 0.2, scale: 0.55, rot: 0.05 },     // back
+      ];
+
+      hairPositions.forEach((pos, i) => {
+        const clump = addMesh(head, new THREE.ConeGeometry(0.06 + pos.scale * 0.02, 0.12 + pos.scale * 0.08, 6), hairMat(),
+          pos.x, pos.y, pos.z, pos.rot, (i % 2 - 0.5) * 0.1, (i % 3 - 1) * 0.08);
+        clump.scale.y = pos.scale;
+      });
+
+      // Individual hair strands for texture (small cones around main clumps)
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const r = 0.04 + Math.random() * 0.03;
+        addMesh(head, new THREE.ConeGeometry(0.015, 0.06 + Math.random() * 0.05, 4), hairMat(),
+          Math.cos(angle) * r, 0.44 + Math.random() * 0.08, -0.1 + Math.random() * 0.3,
+          0.1 + Math.random() * 0.2, 0, (Math.random() - 0.5) * 0.3);
+      }
+
+      // Stage 7: Scars
+      // Scar across right eyebrow area (healed, integrated into skin)
+      const scarMat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.7 });
+      addMesh(head, new THREE.BoxGeometry(0.12, 0.012, 0.02), scarMat, -0.17, 0.16, 0.36, 0, 0, 0.2);
+      // Faint older mark on cheek (right cheek)
+      addMesh(head, new THREE.BoxGeometry(0.08, 0.008, 0.015), new THREE.MeshStandardMaterial({ color: 0x7a6a4a, roughness: 0.75, opacity: 0.6, transparent: true }), -0.22, -0.12, 0.3, 0, 0, 0.3);
+
+      // ── Shoulder Pauldrons (Stage 10: dark brown leather, constructed, with thickness) ──
+      const pauldronMat = () => new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.7, metalness: 0.15 });
+      const pauldronRimMat = () => new THREE.MeshStandardMaterial({ color: 0x7a5535, roughness: 0.6, metalness: 0.1 });
+      const rivetMat = () => new THREE.MeshStandardMaterial({ color: 0x4a4d52, roughness: 0.4, metalness: 0.8 });
+
+      function createPauldron(side) {
+        const sign = side === 'right' ? 1 : -1;
+        const pGroup = new THREE.Group();
+        pGroup.position.set(0.58 * sign, 0.48, 0);
+        torso.add(pGroup);
+
+        // Main pauldron dome — curved over deltoid
+        const dome = addMesh(pGroup, new THREE.SphereGeometry(0.3, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2.2), pauldronMat(), 0, 0, 0);
+        dome.scale.set(1.0, 0.85, 1.0);
+
+        // Reinforced rim (thickness at edges)
+        const rim = addMesh(pGroup, new THREE.TorusGeometry(0.28, 0.04, 8, 20, Math.PI / 1.1), pauldronRimMat(), 0, -0.02, 0, Math.PI, 0, 0);
+
+        // Rivets around the rim
+        for (let i = 0; i < 6; i++) {
+          const angle = (i / 6) * Math.PI * 0.9 + Math.PI * 0.05;
+          addMesh(pGroup, new THREE.SphereGeometry(0.025, 6, 6), rivetMat(),
+            Math.sin(angle) * 0.26 * sign, -Math.cos(angle) * 0.24 - 0.02, Math.cos(angle) * 0.1);
+        }
+
+        // Securing strap going under the arm
+        addMesh(pGroup, new THREE.BoxGeometry(0.08, 0.25, 0.06), leatherDarkMat(), 0.15 * sign, -0.2, 0.05, 0.3 * sign, 0, 0);
+
+        // Small buckle on strap
+        addMesh(pGroup, new THREE.BoxGeometry(0.06, 0.05, 0.03), metalDarkMat(), 0.18 * sign, -0.25, 0.05);
+
+        return pGroup;
+      }
+
+      createPauldron('right'); // slightly larger, more worn
+      createPauldron('left');
+
+      // ── Arms (Stages 8-9: distinct muscles, tapering, believable hands) ──
+      function createArm(side) {
+        const sign = side === 'right' ? 1 : -1;
+        const armGroup = new THREE.Group();
+        armGroup.position.set(0.62 * sign, 0.42, 0);
+        torso.add(armGroup);
+
+        // Stage 8: Deltoid — rounded, wraps around shoulder joint
+        const deltoid = addMesh(armGroup, new THREE.SphereGeometry(0.22, 14, 12), skinLightMat(), 0, 0.02, 0);
+        deltoid.scale.set(0.9, 0.85, 0.9);
+
+        // Stage 8: Upper arm — distinct biceps (front) and triceps (back), tapering toward elbow
+        // Biceps (front volume)
+        const biceps = addMesh(armGroup, new THREE.SphereGeometry(0.14, 12, 10), skinMat(), 0.02 * sign, -0.15, 0.06);
+        biceps.scale.set(0.85, 1.1, 0.8);
+        // Triceps (back volume)
+        const triceps = addMesh(armGroup, new THREE.SphereGeometry(0.15, 12, 10), skinDarkMat(), -0.02 * sign, -0.18, -0.05);
+        triceps.scale.set(0.9, 1.0, 0.85);
+        // Upper arm connecting mass (tapers toward elbow)
+        const upperArm = addMesh(armGroup, new THREE.CapsuleGeometry(0.15, 0.28, 8, 10), skinMat(), 0, -0.24, 0);
+        upperArm.scale.set(1.0, 1.0, 0.95);
+
+        // Stage 8: Elbow — modest bony point
+        addMesh(armGroup, new THREE.SphereGeometry(0.09, 10, 8), skinDarkMat(), 0, -0.42, -0.02);
+
+        // Elbow / forearm group (pivot at elbow)
+        const forearmGroup = new THREE.Group();
+        forearmGroup.position.set(0, -0.45, 0);
+        armGroup.add(forearmGroup);
+
+        // Stage 8: Forearm — thick with volume near elbow, tapering toward wrist
+        // Forearm muscle mass (near elbow)
+        const forearmMuscle = addMesh(forearmGroup, new THREE.SphereGeometry(0.13, 12, 10), skinMat(), 0, -0.12, 0.02);
+        forearmMuscle.scale.set(0.9, 1.0, 0.85);
+        // Forearm shaft (tapering)
+        const forearmShaft = addMesh(forearmGroup, new THREE.CapsuleGeometry(0.11, 0.22, 8, 10), skinDarkMat(), 0, -0.28, 0);
+        // Tendons near wrist (restrained)
+        addMesh(forearmGroup, new THREE.BoxGeometry(0.04, 0.08, 0.02), skinDarkMat(), -0.04, -0.38, 0.04);
+        addMesh(forearmGroup, new THREE.BoxGeometry(0.04, 0.08, 0.02), skinDarkMat(), 0.04, -0.38, 0.04);
+
+        // Stage 10: Leather wrist wrap — overlapping layers
+        const wristWrap = addMesh(forearmGroup, new THREE.CylinderGeometry(0.1, 0.09, 0.12, 10), leatherDarkMat(), 0, -0.4, 0, Math.PI / 2, 0, 0);
+        // Overlapping wrap layers
+        addMesh(forearmGroup, new THREE.TorusGeometry(0.1, 0.015, 6, 12), leatherMat(), 0, -0.38, 0, Math.PI / 2, 0, 0.3);
+        addMesh(forearmGroup, new THREE.TorusGeometry(0.095, 0.015, 6, 12), leatherMat(), 0, -0.42, 0, Math.PI / 2, 0, -0.3);
+
+        // Hand group (pivot at wrist)
+        const handGroup = new THREE.Group();
+        handGroup.position.set(0, -0.48, 0);
+        forearmGroup.add(handGroup);
+
+        // Stage 9: Hand structure — broad palm, thick fingers, prominent knuckles, strong thumb
+        // Palm
+        const palm = addMesh(handGroup, new THREE.BoxGeometry(0.22, 0.18, 0.12), skinMat(), 0, -0.02, 0);
+        palm.scale.set(1.0, 1.0, 1.0);
+
+        // Knuckles — prominent row
+        const knuckleY = -0.08;
+        for (let i = 0; i < 4; i++) {
+          addMesh(handGroup, new THREE.SphereGeometry(0.035, 8, 6), skinLightMat(), -0.075 + i * 0.05, knuckleY, 0.04);
+        }
+
+        // Stage 9: Fingers — four fingers with distinct segments (base, middle, end)
+        const fingerPositions = [-0.075, -0.025, 0.025, 0.075]; // index, middle, ring, pinky
+        const fingerLengths = [0.14, 0.16, 0.14, 0.11]; // middle longest
+
+        fingerPositions.forEach((x, i) => {
+          const len = fingerLengths[i];
+          // Finger base segment
+          addMesh(handGroup, new THREE.CapsuleGeometry(0.022, len * 0.4, 4, 6), skinMat(),
+            x, knuckleY - len * 0.25, 0.06, Math.PI / 2, 0, 0);
+          // Finger middle segment
+          addMesh(handGroup, new THREE.CapsuleGeometry(0.02, len * 0.35, 4, 6), skinMat(),
+            x, knuckleY - len * 0.6, 0.06, Math.PI / 2, 0, 0);
+          // Finger end segment
+          addMesh(handGroup, new THREE.CapsuleGeometry(0.018, len * 0.25, 4, 6), skinMat(),
+            x, knuckleY - len * 0.9, 0.06, Math.PI / 2, 0, 0);
+          // Fingernail — short, thick, muted grayish horn
+          addMesh(handGroup, new THREE.BoxGeometry(0.025, 0.02, 0.008), new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 0.8 }),
+            x, knuckleY - len * 1.05, 0.065);
+          // Knuckle wrinkles
+          addMesh(handGroup, new THREE.BoxGeometry(0.03, 0.006, 0.01), skinDarkMat(),
+            x, knuckleY - len * 0.45, 0.068);
+        });
+
+        // Thumb — strong, opposing
+        const thumbGroup = new THREE.Group();
+        thumbGroup.position.set(side === 'right' ? -0.1 : 0.1, -0.02, 0.03);
+        thumbGroup.rotation.z = side === 'right' ? 0.6 : -0.6;
+        handGroup.add(thumbGroup);
+
+        // Thumb segments
+        addMesh(thumbGroup, new THREE.CapsuleGeometry(0.028, 0.08, 4, 6), skinMat(), 0, -0.05, 0, Math.PI / 2, 0, 0);
+        addMesh(thumbGroup, new THREE.CapsuleGeometry(0.025, 0.07, 4, 6), skinMat(), 0, -0.12, 0, Math.PI / 2, 0, 0);
+        addMesh(thumbGroup, new THREE.CapsuleGeometry(0.022, 0.05, 4, 6), skinMat(), 0, -0.18, 0, Math.PI / 2, 0, 0);
+        // Thumb nail
+        addMesh(thumbGroup, new THREE.BoxGeometry(0.028, 0.02, 0.008), new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 0.8 }), 0, -0.22, 0.005);
+
+        // Stage 9: Pose the hand based on side
+        if (side === 'right') {
+          // Right hand: relaxed partial fist — fingers curl loosely toward palm
+          handGroup.rotation.x = 0.3;
+          // Curl fingers slightly (bend at knuckles)
+          // This is approximated by the palm/finger geometry already in place
+        } else {
+          // Left hand: grip pose for hammer — fingers wrap around shaft
+          // Hand will be rotated to grip the hammer handle
+          handGroup.rotation.x = -0.2;
+          handGroup.rotation.z = 0.15;
+        }
+
+        return { armGroup, forearmGroup, handGroup };
+      }
+
+      const right = createArm('right');
+      const left = createArm('left');
+      rightArmGroup = right.armGroup;
+      rightForearmGroup = right.forearmGroup;
+      rightHandGroup = right.handGroup;
+      leftArmGroup = left.armGroup;
+      leftForearmGroup = left.forearmGroup;
+      leftHandGroup = left.handGroup;
+
+      // Stage 8: Pose — right arm relaxed beside torso, slight bend at elbow
+      rightArmGroup.rotation.set(-0.15, 0, 0.12);
+      rightForearmGroup.rotation.x = -0.25;
+      // Left arm — bent to support hammer, forearm aligned with grip
+      leftArmGroup.rotation.set(0.1, 0, -0.2);
+      leftForearmGroup.rotation.x = -0.4;
+
+      // ── Legs (Stages 12-13: distinct thighs, knees, calves, substantial boots) ──
+      function createLeg(side) {
+        const sign = side === 'right' ? 1 : -1;
+        const legGroup = new THREE.Group();
+        // Feet slightly wider than hip width, toes outward subtly
+        legGroup.position.set(0.3 * sign, -0.18, 0);
+        // Stage 1: Right leg bears more weight (more vertical), left leg slightly forward/outward
+        if (side === 'left') {
+          legGroup.position.z = 0.05; // slightly forward
+          legGroup.rotation.y = -0.08; // toe outward (viewer's right)
+        } else {
+          legGroup.rotation.y = 0.05; // toe outward (viewer's left)
+        }
+        hips.add(legGroup);
+
+        // Stage 12: Thigh — substantial mass, especially front and outer sides
+        // Main thigh mass
+        const thigh = addMesh(legGroup, new THREE.CapsuleGeometry(0.2, 0.25, 10, 12), skinMat(), 0, -0.15, 0);
+        thigh.scale.set(1.1, 1.0, 0.95);
+        // Front thigh volume (quadriceps)
+        addMesh(legGroup, new THREE.SphereGeometry(0.16, 12, 10), skinLightMat(), 0.02, -0.12, 0.08);
+        // Outer thigh volume
+        addMesh(legGroup, new THREE.SphereGeometry(0.14, 12, 10), skinDarkMat(), 0.12 * sign, -0.18, 0);
+        // Inner thigh — distinct, not merged
+        addMesh(legGroup, new THREE.SphereGeometry(0.1, 10, 8), skinDarkMat(), -0.08 * sign, -0.2, 0.02);
+
+        // Stage 12: Knee — broad kneecap, side hollows, subtle folds
+        const kneeGroup = new THREE.Group();
+        kneeGroup.position.set(0, -0.42, 0.02);
+        legGroup.add(kneeGroup);
+
+        // Kneecap — broad, slightly protruding
+        addMesh(kneeGroup, new THREE.SphereGeometry(0.11, 12, 10), skinLightMat(), 0, -0.02, 0.06);
+        // Knee side hollows
+        addMesh(kneeGroup, new THREE.SphereGeometry(0.06, 8, 8), skinDeepMat(), 0.08 * sign, -0.02, 0);
+        addMesh(kneeGroup, new THREE.SphereGeometry(0.06, 8, 8), skinDeepMat(), -0.08 * sign, -0.02, 0);
+        // Folds above knee
+        addMesh(kneeGroup, new THREE.BoxGeometry(0.15, 0.015, 0.02), skinDarkMat(), 0, 0.06, 0.05);
+
+        // Stage 12: Calf — rounded, greatest fullness below knee, tapering to ankle
+        // Calf muscle (back of lower leg)
+        const calf = addMesh(kneeGroup, new THREE.SphereGeometry(0.13, 12, 10), skinMat(), -0.02, -0.18, -0.05);
+        calf.scale.set(0.9, 1.0, 0.85);
+        // Shin ridge (front of lower leg)
+        addMesh(kneeGroup, new THREE.BoxGeometry(0.06, 0.25, 0.04), skinLightMat(), 0, -0.2, 0.06);
+        // Lower leg tapering toward ankle
+        const lowerLeg = addMesh(kneeGroup, new THREE.CapsuleGeometry(0.1, 0.18, 8, 10), skinDarkMat(), 0, -0.32, 0);
+
+        // Stage 12: Ankle — thick, stable
+        addMesh(kneeGroup, new THREE.CylinderGeometry(0.09, 0.1, 0.12, 10), skinDarkMat(), 0, -0.42, 0.01);
+
+        // Stage 13: Substantial boots — heavy brown leather
+        const bootGroup = new THREE.Group();
+        bootGroup.position.set(0, -0.48, 0.02);
+        kneeGroup.add(bootGroup);
+
+        // Boot shaft (ankle part)
+        const bootShaft = addMesh(bootGroup, new THREE.CylinderGeometry(0.13, 0.14, 0.18, 12), leatherMat(), 0, 0.02, 0);
+        // Leather creases at ankle
+        addMesh(bootGroup, new THREE.TorusGeometry(0.13, 0.01, 6, 12), leatherDarkMat(), 0, 0.08, 0, Math.PI / 2, 0, 0);
+        addMesh(bootGroup, new THREE.TorusGeometry(0.135, 0.008, 6, 12), leatherDarkMat(), 0, -0.02, 0, Math.PI / 2, 0, 0.2);
+
+        // Boot foot — broad rounded toe, defined instep
+        const bootFoot = addMesh(bootGroup, new THREE.BoxGeometry(0.24, 0.12, 0.38), leatherMat(), 0, -0.08, 0.08);
+        // Round the toe
+        addMesh(bootGroup, new THREE.SphereGeometry(0.1, 10, 8), leatherMat(), 0, -0.08, 0.24);
+        // Instep curve
+        addMesh(bootGroup, new THREE.SphereGeometry(0.08, 10, 8), leatherMat(), 0, -0.02, 0.18);
+
+        // Boot sole — thick dark sole with layered edge
+        addMesh(bootGroup, new THREE.BoxGeometry(0.26, 0.05, 0.42), new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.95 }), 0, -0.15, 0.08);
+        // Sole tread (modest, near front and sides)
+        for (let i = 0; i < 4; i++) {
+          addMesh(bootGroup, new THREE.BoxGeometry(0.04, 0.02, 0.06), new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 1 }),
+            -0.08 + i * 0.053, -0.18, 0.2);
+        }
+
+        // Stage 13: Boot straps with small iron buckles
+        // Upper strap
+        addMesh(bootGroup, new THREE.BoxGeometry(0.26, 0.04, 0.02), leatherDarkMat(), 0, 0.02, 0.12, 0, 0, 0);
+        addMesh(bootGroup, new THREE.BoxGeometry(0.04, 0.05, 0.03), metalDarkMat(), 0.1 * sign, 0.02, 0.13);
+        // Lower strap (across instep)
+        addMesh(bootGroup, new THREE.BoxGeometry(0.22, 0.035, 0.02), leatherDarkMat(), 0, -0.04, 0.2, 0.3, 0, 0);
+        addMesh(bootGroup, new THREE.BoxGeometry(0.035, 0.045, 0.025), metalDarkMat(), 0.08 * sign, -0.04, 0.21, 0.3, 0, 0);
+
+        // Stage 13: Leather creases where forefoot bends
+        addMesh(bootGroup, new THREE.BoxGeometry(0.2, 0.008, 0.015), leatherDarkMat(), 0, -0.04, 0.18);
+
+        // Stage 13: Scuffing on toes, dust around lower edges
+        addMesh(bootGroup, new THREE.BoxGeometry(0.08, 0.03, 0.02), new THREE.MeshStandardMaterial({ color: 0x6a5a4a, roughness: 1, opacity: 0.5, transparent: true }), 0, -0.1, 0.26);
+        addMesh(bootGroup, new THREE.BoxGeometry(0.2, 0.01, 0.3), new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 1, opacity: 0.3, transparent: true }), 0, -0.17, 0.08);
+
+        // Stage 1: Right leg bears more weight (more compressed)
+        if (side === 'right') {
+          legGroup.rotation.x = -0.02; // slightly more vertical/compressed
+        }
+      }
+
+      createLeg('right');
+      createLeg('left');
+
+      // Store rest rotations
+      restPose.rightArm = { x: rightArmGroup.rotation.x, y: rightArmGroup.rotation.y, z: rightArmGroup.rotation.z };
+      restPose.rightForearm = { x: rightForearmGroup.rotation.x, y: rightForearmGroup.rotation.y, z: rightForearmGroup.rotation.z };
+      restPose.leftArm = { x: leftArmGroup.rotation.x, y: leftArmGroup.rotation.y, z: leftArmGroup.rotation.z };
+      restPose.leftForearm = { x: leftForearmGroup.rotation.x, y: leftForearmGroup.rotation.y, z: leftForearmGroup.rotation.z };
+      restPose.torso = { x: torso.rotation.x, y: torso.rotation.y, z: torso.rotation.z };
+      restPose.orcRot = { x: orc.rotation.x, y: orc.rotation.y, z: orc.rotation.z };
+    }
+
+    // ── War Hammer (Stage 14: compact heavy war hammer in LEFT hand, resting on ground) ──
+    function createHammer() {
+      hammer = new THREE.Group();
+      leftHandGroup.add(hammer);
+
+      // Position hammer so shaft descends from hand toward ground
+      // Hand is roughly at y≈1.3 in world space, so shaft length ≈1.2 to reach ground
+      hammer.position.set(0, 0.05, 0.02);
+      // Shaft nearly vertical with slight outward angle
+      hammer.rotation.set(0.08, 0, 0.05);
+
+      const shaftLength = 1.25;
+      const shaftTop = shaftLength / 2 - 0.15; // grip area near hand
+      const shaftBottom = -shaftLength / 2 + 0.1; // near head
+
+      // Stage 14: Wooden shaft — straight but naturally imperfect, warm dark brown
+      const shaft = addMesh(hammer, new THREE.CylinderGeometry(0.035, 0.045, shaftLength, 12), woodMat(), 0, 0, 0);
+      // Slight imperfection (subtle bend)
+      shaft.scale.x = 1.0;
+
+      // Longitudinal grain suggestion (thin darker lines along shaft)
+      const grainMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.9 });
+      for (let i = 0; i < 3; i++) {
+        const angle = (i / 3) * Math.PI * 2;
+        addMesh(hammer, new THREE.CylinderGeometry(0.003, 0.003, shaftLength * 0.9, 4), grainMat,
+          Math.cos(angle) * 0.035, 0, Math.sin(angle) * 0.035);
+      }
+
+      // Stage 14: Worn leather grip around hand position
+      const gripMat = new THREE.MeshStandardMaterial({ color: 0x4a2e18, roughness: 0.95 });
+      addMesh(hammer, new THREE.CylinderGeometry(0.045, 0.045, 0.25, 12), gripMat, 0, shaftTop, 0);
+      // Leather wrap rings on grip
+      for (let i = 0; i < 5; i++) {
+        addMesh(hammer, new THREE.TorusGeometry(0.047, 0.008, 6, 12), new THREE.MeshStandardMaterial({ color: 0x3a2412, roughness: 0.95 }),
+          0, shaftTop - 0.02 + i * 0.05, 0, Math.PI / 2, 0, 0);
+      }
+
+      // Stage 14: Metal collar where shaft enters head
+      addMesh(hammer, new THREE.CylinderGeometry(0.06, 0.07, 0.12, 12), metalDarkMat(), 0, shaftBottom + 0.06, 0);
+
+      // Stage 14: Hammer head — transverse, broad rectangular striking face
+      // Main head body (dark iron)
+      const headY = shaftBottom;
+      addMesh(hammer, new THREE.BoxGeometry(0.35, 0.18, 0.14), metalDarkMat(), 0, headY, 0);
+
+      // Striking face (broad rectangular, slightly protruding)
+      addMesh(hammer, new THREE.BoxGeometry(0.12, 0.2, 0.16), metalMat(), 0.18, headY, 0);
+      // Opposing end (slightly narrower poll)
+      addMesh(hammer, new THREE.BoxGeometry(0.1, 0.16, 0.13), metalDarkMat(), -0.17, headY, 0);
+
+      // Softened corners (small spheres at edges)
+      const cornerPositions = [
+        { x: 0.23, z: 0.07 }, { x: 0.23, z: -0.07 },
+        { x: -0.21, z: 0.06 }, { x: -0.21, z: -0.06 },
+      ];
+      cornerPositions.forEach(pos => {
+        addMesh(hammer, new THREE.SphereGeometry(0.03, 8, 6), metalMat(), pos.x, headY, pos.z);
+      });
+
+      // Stage 14: Impact dents and worn edges (small darker indentations)
+      const dentMat = new THREE.MeshStandardMaterial({ color: 0x2a2d32, roughness: 0.7, metalness: 0.6 });
+      addMesh(hammer, new THREE.SphereGeometry(0.025, 6, 6), dentMat, 0.2, headY + 0.05, 0.06);
+      addMesh(hammer, new THREE.SphereGeometry(0.02, 6, 6), dentMat, 0.15, headY - 0.04, -0.05);
+      addMesh(hammer, new THREE.SphereGeometry(0.018, 6, 6), dentMat, -0.18, headY + 0.03, 0.04);
+
+      // Modest metallic highlights on edges
+      const highlightMat = new THREE.MeshStandardMaterial({ color: 0x8a8f98, roughness: 0.2, metalness: 0.9, emissive: 0x1a1d22, emissiveIntensity: 0.3 });
+      addMesh(hammer, new THREE.BoxGeometry(0.01, 0.18, 0.01), highlightMat, 0.235, headY, 0.07);
+      addMesh(hammer, new THREE.BoxGeometry(0.01, 0.18, 0.01), highlightMat, 0.235, headY, -0.07);
+
+      // Bottom of hammer head rests on ground — small flat base
+      addMesh(hammer, new THREE.BoxGeometry(0.3, 0.03, 0.12), metalDarkMat(), 0, headY - 0.1, 0);
+
+      // Pommel at top of shaft (above grip)
+      addMesh(hammer, new THREE.SphereGeometry(0.05, 10, 8), metalDarkMat(), 0, shaftTop + 0.15, 0);
+    }
+
+    // ── Attack Animation (Hammer swing with LEFT arm) ──────────────────────
+    let isAttacking = false;
+    let attackStart = 0;
+    const ATTACK_DURATION = 1.0;
+
+    // Keyframes for left arm hammer swing
+    // Rest pose: armX: 0.1, armZ: -0.2, foreX: -0.4
+    const swingKeyframes = [
+      { t: 0.00, armX: 0.1,  armZ: -0.2, foreX: -0.4, torsoX: 0,    orcX: 0 },     // rest
+      { t: 0.35, armX: -1.8, armZ: -0.4, foreX: -0.9, torsoX: -0.15, orcX: -0.05 }, // wind-up (raise hammer back/up)
+      { t: 0.55, armX: 1.3,  armZ: 0.15, foreX: 0.1,  torsoX: 0.2,   orcX: 0.05 },  // strike (swing forward/down)
+      { t: 0.65, armX: 1.0,  armZ: 0.1,  foreX: 0.05, torsoX: 0.18,  orcX: 0.04 },  // hold at impact
+      { t: 1.00, armX: 0.1,  armZ: -0.2, foreX: -0.4, torsoX: 0,    orcX: 0 },     // recovery to rest
+    ];
+
+    function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+    function easeInQuad(t) { return t*t; }
+
+    function sampleKeyframes(kfs, t) {
+      if (t <= kfs[0].t) return kfs[0];
+      if (t >= kfs[kfs.length-1].t) return kfs[kfs.length-1];
+      for (let i = 0; i < kfs.length - 1; i++) {
+        if (t >= kfs[i].t && t <= kfs[i+1].t) {
+          const a = kfs[i], b = kfs[i+1];
+          const u = (t - a.t) / (b.t - a.t);
+          return {
+            armX: a.armX + (b.armX - a.armX) * u,
+            armZ: a.armZ + (b.armZ - a.armZ) * u,
+            foreX: a.foreX + (b.foreX - a.foreX) * u,
+            torsoX: a.torsoX + (b.torsoX - a.torsoX) * u,
+            orcX: a.orcX + (b.orcX - a.orcX) * u,
+          };
+        }
+      }
+      return kfs[kfs.length-1];
+    }
+
+    // Camera shake
+    let shakeUntil = 0;
+    let shakeIntensity = 0;
+    const cameraShakeOffset = new THREE.Vector3();
+
+    function triggerCameraShake() {
+      shakeUntil = performance.now() + 150;
+      shakeIntensity = 0.12;
+    }
+
+    // Impact particles
+    let impactParticles = null;
+    function spawnImpactEffect(worldPos) {
+      const count = 40;
+      const positions = new Float32Array(count * 3);
+      const velocities = [];
+      for (let i = 0; i < count; i++) {
+        positions[i*3] = worldPos.x + (Math.random()-0.5)*0.1;
+        positions[i*3+1] = worldPos.y + (Math.random()-0.5)*0.1;
+        positions[i*3+2] = worldPos.z + (Math.random()-0.5)*0.1;
+        const v = new THREE.Vector3(
+          (Math.random()-0.5)*4,
+          Math.random()*3 + 1,
+          (Math.random()-0.5)*4
+        );
+        velocities.push(v);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.PointsMaterial({ color: 0xffaa44, size: 0.08, transparent: true, opacity: 1, sizeAttenuation: true });
+      impactParticles = new THREE.Points(geo, mat);
+      impactParticles.userData = { velocities, life: 1.0, born: performance.now() };
+      scene.add(impactParticles);
+    }
+
+    function updateImpactParticles(dt) {
+      if (!impactParticles) return;
+      const p = impactParticles.userData;
+      p.life -= dt * 2.0;
+      const pos = impactParticles.geometry.attributes.position.array;
+      for (let i = 0; i < p.velocities.length; i++) {
+        pos[i*3]   += p.velocities[i].x * dt;
+        pos[i*3+1] += (p.velocities[i].y - 3*dt) * dt * 2;
+        pos[i*3+2] += p.velocities[i].z * dt;
+        p.velocities[i].y -= 9.8 * dt;
+      }
+      impactParticles.geometry.attributes.position.needsUpdate = true;
+      impactParticles.material.opacity = Math.max(0, p.life);
+      if (p.life <= 0) {
+        scene.remove(impactParticles);
+        impactParticles.geometry.dispose();
+        impactParticles.material.dispose();
+        impactParticles = null;
+      }
+    }
+
+    // Expanding ring on impact
+    let impactRing = null;
+    function spawnImpactRing(worldPos) {
+      const geo = new THREE.RingGeometry(0.05, 0.12, 24);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+      impactRing = new THREE.Mesh(geo, mat);
+      impactRing.position.copy(worldPos);
+      impactRing.position.y = 0.05;
+      impactRing.rotation.x = -Math.PI / 2;
+      impactRing.userData = { life: 1.0 };
+      scene.add(impactRing);
+    }
+
+    function updateImpactRing(dt) {
+      if (!impactRing) return;
+      const u = impactRing.userData;
+      u.life -= dt * 2.5;
+      const s = 1 + (1 - u.life) * 4;
+      impactRing.scale.set(s, s, 1);
+      impactRing.material.opacity = Math.max(0, u.life * 0.8);
+      if (u.life <= 0) {
+        scene.remove(impactRing);
+        impactRing.geometry.dispose();
+        impactRing.material.dispose();
+        impactRing = null;
+      }
+    }
+
+    // Screen flash
+    const flashEl = document.getElementById('flash');
+    function triggerFlash() {
+      flashEl.style.transition = 'none';
+      flashEl.style.opacity = '0.5';
+      requestAnimationFrame(() => {
+        flashEl.style.transition = 'opacity 0.3s';
+        flashEl.style.opacity = '0';
+      });
+    }
+
+    // Layered hammer impact: a sharp crack, low punch, and short steel resonance
+    let audioCtx = null;
+    function playThud() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+        const start = audioCtx.currentTime;
+        const noiseBuffer = audioCtx.createBuffer(1, Math.ceil(audioCtx.sampleRate * 0.16), audioCtx.sampleRate);
+        const samples = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+        const crack = audioCtx.createBufferSource();
+        crack.buffer = noiseBuffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(2200, start);
+        filter.frequency.exponentialRampToValueAtTime(650, start + 0.12);
+        filter.Q.value = 0.7;
+        const crackGain = audioCtx.createGain();
+        crackGain.gain.setValueAtTime(0.001, start);
+        crackGain.gain.linearRampToValueAtTime(0.45, start + 0.002);
+        crackGain.gain.exponentialRampToValueAtTime(0.001, start + 0.14);
+        crack.connect(filter); filter.connect(crackGain); crackGain.connect(audioCtx.destination);
+        crack.start(start); crack.stop(start + 0.16);
+
+        function impactTone(frequency, endFrequency, volume, duration) {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(frequency, start);
+          osc.frequency.exponentialRampToValueAtTime(endFrequency, start + duration);
+          gain.gain.setValueAtTime(0.001, start);
+          gain.gain.linearRampToValueAtTime(volume, start + 0.003);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(start); osc.stop(start + duration + 0.01);
+          osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+        }
+        impactTone(155, 48, 0.38, 0.2);
+        impactTone(920, 680, 0.09, 0.13);
+        impactTone(1470, 1180, 0.05, 0.09);
+        crack.onended = () => { crack.disconnect(); filter.disconnect(); crackGain.disconnect(); };
+      } catch(e) {}
+    }
+
+    function playAttack() {
+      if (isAttacking) return;
+      isAttacking = true;
+      attackStart = performance.now();
+      updateAttack._impactDone = false;
+      torso.scale.y = 1;
+      torso.rotation.z = restPose.torso.z;
+      orc.rotation.y = restPose.orcRot.y;
+      document.getElementById('attackBtn').disabled = true;
+    }
+
+    function updateAttack(now) {
+      if (!isAttacking) return;
+      const elapsed = (now - attackStart) / 1000;
+      const t = Math.min(elapsed / ATTACK_DURATION, 1.0);
+
+      let poseTime;
+      if (t < 0.35) {
+        poseTime = 0.35 * easeInOutCubic(t / 0.35);
+      } else if (t < 0.55) {
+        poseTime = 0.35 + 0.2 * easeInQuad((t - 0.35) / 0.2);
+      } else if (t < 0.65) {
+        poseTime = 0.55 + 0.1 * (1 - Math.pow(1 - (t - 0.55) / 0.1, 2));
+      } else {
+        poseTime = 0.65 + 0.35 * easeInOutCubic((t - 0.65) / 0.35);
+      }
+      const kf = sampleKeyframes(swingKeyframes, poseTime);
+      leftArmGroup.rotation.set(kf.armX, 0, kf.armZ);
+      leftForearmGroup.rotation.x = kf.foreX;
+      torso.rotation.x = kf.torsoX;
+      orc.rotation.x = kf.orcX;
+
+      // Trigger once when the swing crosses impact, even if a frame skips it.
+      if (t >= 0.55 && !updateAttack._impactDone) {
+        updateAttack._impactDone = true;
+        // Sample the contact pose so effects stay on the hammer head.
+        const contact = sampleKeyframes(swingKeyframes, 0.55);
+        leftArmGroup.rotation.set(contact.armX, 0, contact.armZ);
+        leftForearmGroup.rotation.x = contact.foreX;
+        torso.rotation.x = contact.torsoX;
+        orc.rotation.x = contact.orcX;
+        // Hammer head is at the bottom of the shaft (local y ≈ -0.5)
+        const tip = hammer.localToWorld(new THREE.Vector3(0.15, -0.55, 0));
+        leftArmGroup.rotation.set(kf.armX, 0, kf.armZ);
+        leftForearmGroup.rotation.x = kf.foreX;
+        torso.rotation.x = kf.torsoX;
+        orc.rotation.x = kf.orcX;
+        triggerCameraShake();
+        triggerFlash();
+        playThud();
+        spawnImpactEffect(tip);
+        spawnImpactRing(tip);
+      }
+
+      if (t >= 1.0) {
+        isAttacking = false;
+        updateAttack._impactDone = false;
+        leftArmGroup.rotation.set(restPose.leftArm.x, restPose.leftArm.y, restPose.leftArm.z);
+        leftForearmGroup.rotation.set(restPose.leftForearm.x, restPose.leftForearm.y, restPose.leftForearm.z);
+        torso.rotation.set(restPose.torso.x, restPose.torso.y, restPose.torso.z);
+        orc.rotation.set(restPose.orcRot.x, restPose.orcRot.y, restPose.orcRot.z);
+        document.getElementById('attackBtn').disabled = false;
+      }
+    }
+
+    // ── Idle Animation ─────────────────────────────────────────────────────
+    function updateIdle(elapsed) {
+      if (isAttacking) return;
+      const breathe = Math.sin(elapsed * 2) * 0.015;
+      torso.scale.y = 1.0 + breathe;
+      torso.rotation.z = Math.sin(elapsed * 1.3) * 0.02;
+      // Right arm (free arm) — subtle sway
+      rightArmGroup.rotation.z = restPose.rightArm.z + Math.sin(elapsed * 1.1) * 0.03;
+      rightArmGroup.rotation.x = restPose.rightArm.x + Math.sin(elapsed * 0.9 + 1) * 0.02;
+      orc.rotation.y = restPose.orcRot.y + Math.sin(elapsed * 0.5) * 0.03;
+    }
+
+    // ── UI ─────────────────────────────────────────────────────────────────
+    function setupUI() {
+      document.getElementById('attackBtn').addEventListener('click', playAttack);
+    }
+
+    // ── Resize ─────────────────────────────────────────────────────────────
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ── Main Loop ──────────────────────────────────────────────────────────
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.elapsedTime;
+      const now = performance.now();
+
+      updateAttack(now);
+      updateIdle(elapsed);
+
+      updateImpactParticles(dt);
+      updateImpactRing(dt);
+
+      controls.update();
+      // Shake only the rendered view; preserve the position chosen by the user.
+      cameraShakeOffset.set(0, 0, 0);
+      if (now < shakeUntil) {
+        cameraShakeOffset.set(
+          (Math.random()-0.5) * shakeIntensity,
+          (Math.random()-0.5) * shakeIntensity,
+          (Math.random()-0.5) * shakeIntensity
+        );
+        camera.position.add(cameraShakeOffset);
+        camera.lookAt(controls.target);
+      }
+      renderer.render(scene, camera);
+      camera.position.sub(cameraShakeOffset);
+      camera.lookAt(controls.target);
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    setupLights();
+    setupGround();
+    createOrc();
+    createHammer();
+    setupUI();
+    animate();
+  </script>
+</body>
+</html>
